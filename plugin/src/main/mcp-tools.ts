@@ -16,7 +16,7 @@ import {
 	screenshotScale,
 	type AssetNode,
 } from "./mcp-core";
-import { collectTokens, compactSpec, mergeExtras, type NodeExtra, type Spec } from "./mcp-describe";
+import { collectTokens, compactSpec, mergeExtras, toCss, type NodeExtra, type Spec } from "./mcp-describe";
 import { firstSolid } from "./paint";
 import { searchIn, type SearchNode } from "./search";
 import { pageOutline, serializeNode, setSerializeLimits } from "./serializer";
@@ -33,12 +33,36 @@ async function nodeById(id: string): Promise<SceneNode | null> {
 
 const VECTORS = ["VECTOR", "BOOLEAN_OPERATION", "STAR", "POLYGON", "LINE"];
 
-// Рамки нод относительно корня и свойства векторов (в дереве у них только размер).
-function collectExtras(root: SceneNode, maxNodes: number, boxes: boolean): Map<string, NodeExtra> {
+const varNames = new Map<string, string>();
+
+// Имя переменной цвета, привязанной к заливке/обводке (или имя цветового стиля).
+async function paintName(paints: unknown, styleId: unknown): Promise<string | undefined> {
+	try {
+		if (Array.isArray(paints)) {
+			const p = (paints as Paint[]).find((x) => x.type === "SOLID" && x.visible !== false) as SolidPaint | undefined;
+			const id = p?.boundVariables?.color?.id;
+			if (id) {
+				if (!varNames.has(id)) varNames.set(id, (await figma.variables.getVariableByIdAsync(id))?.name ?? "");
+				const name = varNames.get(id);
+				if (name) return name;
+			}
+		}
+		if (typeof styleId === "string" && styleId) return (await figma.getStyleByIdAsync(styleId))?.name;
+	} catch {
+		/* стиль/переменная из недоступной библиотеки */
+	}
+	return undefined;
+}
+
+// Рамки нод относительно корня, свойства векторов, имена привязанных переменных
+// и ассеты (в дереве у векторов только размер, а про переменные нет ничего).
+async function collectExtras(root: SceneNode, maxNodes: number, boxes: boolean, withVars = false): Promise<Map<string, NodeExtra>> {
 	const extras = new Map<string, NodeExtra>();
+	const assets = new Map<string, { kind: "photo" | "icon"; format: "png" | "svg" }>();
+	if (withVars) for (const a of collectAssets(root as unknown as AssetNode)) assets.set(a.id, { kind: a.kind, format: a.format });
 	const rb = (root as SceneNode & { absoluteBoundingBox: Rect | null }).absoluteBoundingBox;
 	let visited = 0;
-	const walk = (n: SceneNode, depth: number): void => {
+	const walk = async (n: SceneNode, depth: number): Promise<void> => {
 		if (visited++ >= maxNodes || depth > 14 || n.visible === false) return;
 		const extra: NodeExtra = {};
 		const b = (n as SceneNode & { absoluteBoundingBox: Rect | null }).absoluteBoundingBox;
@@ -57,10 +81,29 @@ function collectExtras(root: SceneNode, maxNodes: number, boxes: boolean): Map<s
 			if ("opacity" in n && n.opacity !== 1) v.opacity = n.opacity;
 			if (Object.keys(v).length) extra.vector = v;
 		}
-		if (extra.box || extra.vector) extras.set(n.id, extra);
-		if ("children" in n) for (const c of n.children) walk(c, depth + 1);
+		if (withVars) {
+			const vars: Record<string, string> = {};
+			const isText = n.type === "TEXT";
+			if ("fills" in n) {
+				const name = await paintName(n.fills, "fillStyleId" in n ? n.fillStyleId : undefined);
+				if (name) vars[isText ? "color" : "fill"] = name;
+			}
+			if ("strokes" in n && (n as GeometryMixin).strokes.length) {
+				const name = await paintName((n as GeometryMixin).strokes, "strokeStyleId" in n ? (n as GeometryMixin).strokeStyleId : undefined);
+				if (name) vars.stroke = name;
+			}
+			if (isText && typeof (n as TextNode).textStyleId === "string" && (n as TextNode).textStyleId) {
+				const st = await figma.getStyleByIdAsync((n as TextNode).textStyleId as string).catch(() => null);
+				if (st?.name) vars.textStyle = st.name;
+			}
+			if (Object.keys(vars).length) extra.vars = vars;
+			const asset = assets.get(n.id);
+			if (asset) extra.asset = asset;
+		}
+		if (extra.box || extra.vector || extra.vars || extra.asset) extras.set(n.id, extra);
+		if ("children" in n) for (const c of n.children) await walk(c, depth + 1);
 	};
-	walk(root, 0);
+	await walk(root, 0);
 	return extras;
 }
 
@@ -153,8 +196,9 @@ export async function runMcpTool(tool: unknown, args: Record<string, unknown>): 
 				const node = await nodeById(a.id);
 				if (!node) return { ok: false, error: `нода ${a.id} не найдена` };
 				let spec = serialize(node, a.depth, a.maxNodes) as Spec;
-				spec = mergeExtras(spec, collectExtras(node, a.maxNodes + 100, a.boxes));
-				if (a.compact) spec = compactSpec(spec);
+				spec = mergeExtras(spec, await collectExtras(node, a.maxNodes + 100, a.boxes, true));
+				if (a.compact || a.format === "css") spec = compactSpec(spec);
+				if (a.format === "css") return { ok: true, data: { id: node.id, name: node.name, format: "css", html: toCss(spec) } };
 				return { ok: true, data: spec };
 			}
 			case "tokens": {
@@ -163,7 +207,7 @@ export async function runMcpTool(tool: unknown, args: Record<string, unknown>): 
 				const node = await nodeById(a.id);
 				if (!node) return { ok: false, error: `нода ${a.id} не найдена` };
 				// Векторы (линии, пятна) в дереве без цветов — подмешиваем их заливки и обводки.
-				const spec = mergeExtras(serialize(node, 12, 600) as Spec, collectExtras(node, 700, false));
+				const spec = mergeExtras(serialize(node, 12, 600) as Spec, await collectExtras(node, 700, false, true));
 				return { ok: true, data: collectTokens(spec) };
 			}
 			case "screenshot": {

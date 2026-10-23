@@ -33,6 +33,7 @@ export interface NodeArgs {
 	maxNodes: number;
 	compact: boolean;
 	boxes: boolean;
+	format: "json" | "css";
 }
 
 // null — нет id.
@@ -44,6 +45,7 @@ export function nodeArgs(args: Record<string, unknown>): NodeArgs | null {
 		maxNodes: clampInt(args.maxNodes, 10, 600, 300),
 		compact: args.compact !== false,
 		boxes: args.boxes !== false,
+		format: args.format === "css" ? "css" : "json",
 	};
 }
 

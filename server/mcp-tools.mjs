@@ -26,7 +26,7 @@ export const MCP_TOOLS = {
 	},
 	node: {
 		description:
-			"Structure of one node and its children as a JSON tree (type, name, sizes, auto-layout, padding, gap, fills, strokes, radius, shadows, text with fonts, component links; vectors/lines carry fill, stroke, strokeWidth, rotation). Every node has box:[x,y,w,h] relative to the requested node. Deeper trees are cut by maxNodes/depth.",
+			"Structure of one node and its children as a JSON tree (type, name, sizes, auto-layout, padding, gap, fills, strokes, radius, shadows, text with fonts, component links; vectors/lines carry fill, stroke, strokeWidth, rotation). Every node has box:[x,y,w,h] relative to the requested node. Nodes carry vars (names of bound Figma variables/styles) and asset (photo/icon + export format) where present. Text wrapped only by block width comes as one line with lines:N. Deeper trees are cut by maxNodes/depth.",
 		input: {
 			id: z.string().optional().describe('Figma node id, e.g. "12:345"'),
 			ids: idsField(BATCH_LIMITS.node),
@@ -34,6 +34,7 @@ export const MCP_TOOLS = {
 			maxNodes: z.number().int().min(10).max(600).optional().describe("Node limit, default 300"),
 			compact: z.boolean().optional().describe("Drop default values (zero padding/gap, align start/left, name = text). Default true"),
 			boxes: z.boolean().optional().describe('Add "box":[x,y,w,h] to every node, relative to the requested node (absolute placement). Default true'),
+			format: z.enum(["json", "css"]).optional().describe("json (default): node tree. css: ready HTML with inline flex styles, var(--name, #hex) for variables bound in Figma, :root list, asset <img> placeholders"),
 		},
 	},
 	screenshot: {
