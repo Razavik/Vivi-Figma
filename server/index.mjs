@@ -7,10 +7,10 @@ import { createServer } from "node:http";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocketServer } from "ws";
-import { checkToken, MAX_PAYLOAD } from "./limits.mjs";
+import { MAX_PAYLOAD } from "./limits.mjs";
 import { createRelay } from "./mcp-relay.mjs";
 
-// server/.env (KEY=VALUE): PORT, BRIDGE_TOKEN… Уже заданные env не трогаем.
+// server/.env (KEY=VALUE): PORT и др. Уже заданные env не трогаем.
 const serverDir = dirname(fileURLToPath(import.meta.url));
 try {
 	for (const line of readFileSync(join(serverDir, ".env"), "utf-8").split(/\r?\n/)) {
@@ -22,7 +22,6 @@ try {
 }
 
 const PORT = Number(process.env.PORT || 8787);
-const BRIDGE_TOKEN = process.env.BRIDGE_TOKEN || "";
 
 const relay = createRelay();
 const httpServer = createServer((_req, res) => {
@@ -75,10 +74,6 @@ function servePlugin(socket) {
 }
 
 wss.on("connection", (socket, request) => {
-	if (!checkToken(request.url, BRIDGE_TOKEN)) {
-		socket.close(4401, "bad token");
-		return;
-	}
 	const role = new URL(request.url || "/", "ws://localhost").searchParams.get("role");
 	if (role === "mcp") serveMcpClient(socket);
 	else servePlugin(socket);

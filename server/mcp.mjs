@@ -29,7 +29,6 @@ try {
 }
 
 const PORT = Number(process.env.PORT || 8787);
-const TOKEN = process.env.BRIDGE_TOKEN || "";
 const CALL_TIMEOUT = 40_000;
 const SERVER_DIR = dirname(fileURLToPath(import.meta.url));
 // Куда складываются экспортированные картинки (дальше этой папки писать нельзя).
@@ -75,7 +74,7 @@ async function open() {
 	try {
 		return await connectOnce();
 	} catch (err) {
-		if (process.env.MCP_NO_AUTOSTART === "1" || /токен/.test(String(err?.message))) throw err;
+		if (process.env.MCP_NO_AUTOSTART === "1") throw err;
 		await startBridge();
 		let last = err;
 		for (let i = 0; i < 30; i++) {
@@ -96,7 +95,6 @@ function connectOnce() {
 	opening = new Promise((resolve, reject) => {
 		const url = new URL(`ws://127.0.0.1:${PORT}/`);
 		url.searchParams.set("role", "mcp");
-		if (TOKEN) url.searchParams.set("token", TOKEN);
 		const ws = new WebSocket(url);
 		ws.on("open", () => {
 			socket = ws;
@@ -117,12 +115,12 @@ function connectOnce() {
 			if (msg.ok) item.resolve(msg);
 			else item.reject(new Error(msg.error || "ошибка"));
 		});
-		ws.on("close", (code) => {
+		ws.on("close", () => {
 			if (socket === ws) socket = null;
 			opening = null;
 			for (const [id, item] of waiting) {
 				clearTimeout(item.timer);
-				item.reject(new Error(code === 4401 ? "мост отклонил токен (BRIDGE_TOKEN)" : "соединение с мостом закрыто"));
+				item.reject(new Error("соединение с мостом закрыто"));
 				waiting.delete(id);
 			}
 		});

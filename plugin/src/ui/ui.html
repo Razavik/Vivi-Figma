@@ -5,21 +5,10 @@
 		<link rel="stylesheet" href="./ui.css" />
 	</head>
 	<body>
-		<main class="card">
-			<div class="row">
-				<span id="dot" class="dot"></span>
-				<span id="state" class="state">Подключение к мосту…</span>
-			</div>
-			<div class="row meta">
-				<span id="calls">Вызовов: 0</span>
-				<span id="last" class="last"></span>
-			</div>
-			<p class="hint">Оставьте плагин открытым — агенты читают дизайн этого файла через MCP.</p>
-			<label class="token">
-				<span>Токен моста (если задан BRIDGE_TOKEN)</span>
-				<input id="token" type="password" autocomplete="off" maxlength="200" />
-			</label>
-		</main>
+		<div class="status">
+			<span id="dot" class="dot"></span>
+			<span id="state" class="state">Подключение к мосту…</span>
+		</div>
 		<script src="./ui.js"></script>
 	</body>
 </html>

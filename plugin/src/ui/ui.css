@@ -3,24 +3,20 @@
 }
 body {
 	margin: 0;
-	font: 11px/1.4 Inter, system-ui, sans-serif;
+	font: 12px/1.4 Inter, system-ui, sans-serif;
 	color: var(--figma-color-text, #1e1e1e);
 	background: var(--figma-color-bg, #fff);
 }
-.card {
-	display: flex;
-	flex-direction: column;
-	gap: 6px;
-	padding: 10px 12px;
-}
-.row {
+.status {
 	display: flex;
 	align-items: center;
 	gap: 8px;
+	height: 100vh;
+	padding: 0 12px;
 }
 .state {
 	font-weight: 600;
-	font-size: 12px;
+	white-space: nowrap;
 }
 .dot {
 	width: 8px;
@@ -42,32 +38,4 @@ body {
 	100% {
 		box-shadow: 0 0 0 8px rgba(20, 174, 92, 0);
 	}
-}
-.meta {
-	color: var(--figma-color-text-secondary, #7b7b7b);
-	justify-content: space-between;
-}
-.last {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-.hint {
-	margin: 0;
-	color: var(--figma-color-text-secondary, #7b7b7b);
-}
-.token {
-	display: flex;
-	flex-direction: column;
-	gap: 3px;
-	color: var(--figma-color-text-secondary, #7b7b7b);
-}
-.token input {
-	width: 100%;
-	padding: 4px 6px;
-	font: inherit;
-	color: var(--figma-color-text, #1e1e1e);
-	background: var(--figma-color-bg-secondary, #f5f5f5);
-	border: 1px solid var(--figma-color-border, #d9d9d9);
-	border-radius: 6px;
 }
