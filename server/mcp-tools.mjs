@@ -3,6 +3,11 @@
 // моста (белый список имён, чтобы через relay не прошла чужая операция).
 import { z } from "zod";
 
+// Пакетный режим: вместо одного id можно передать несколько — один вызов вместо серии.
+export const BATCH_LIMITS = { node: 10, screenshot: 8, tokens: 10, assets: 10 };
+const idsField = (max) =>
+	z.array(z.string()).min(1).max(max).optional().describe(`Several nodes in ONE call (up to ${max}) instead of id: the result is a list, one entry per node, in the same order`);
+
 export const MCP_TOOLS = {
 	status: {
 		description:
@@ -23,7 +28,8 @@ export const MCP_TOOLS = {
 		description:
 			"Structure of one node and its children as a JSON tree (type, name, sizes, auto-layout, padding, gap, fills, strokes, radius, shadows, text with fonts, component links; vectors/lines carry fill, stroke, strokeWidth, rotation). Every node has box:[x,y,w,h] relative to the requested node. Deeper trees are cut by maxNodes/depth.",
 		input: {
-			id: z.string().describe('Figma node id, e.g. "12:345"'),
+			id: z.string().optional().describe('Figma node id, e.g. "12:345"'),
+			ids: idsField(BATCH_LIMITS.node),
 			depth: z.number().int().min(1).max(12).optional().describe("Tree depth, default 6"),
 			maxNodes: z.number().int().min(10).max(600).optional().describe("Node limit, default 300"),
 			compact: z.boolean().optional().describe("Drop default values (zero padding/gap, align start/left, name = text). Default true"),
@@ -34,7 +40,8 @@ export const MCP_TOOLS = {
 		description:
 			"PNG picture of a node exactly as it looks in Figma (use it to judge visual design: spacing, colors, hierarchy).",
 		input: {
-			id: z.string().describe("Figma node id"),
+			id: z.string().optional().describe("Figma node id"),
+			ids: idsField(BATCH_LIMITS.screenshot),
 			maxSize: z.number().int().min(128).max(4096).optional().describe("Longest side in px, default 1024"),
 			scale: z.number().min(0.1).max(4).optional().describe("Explicit scale (overrides maxSize). Use 1–2 for small text; for long pages screenshot child blocks one by one"),
 		},
@@ -55,7 +62,8 @@ export const MCP_TOOLS = {
 		description:
 			"List the assets inside a node: photos (image fills) and icons (vectors) with id, name, size and the best export format. Use it before export to get the exact ids. Accepts a node id or a figma.com link with node-id.",
 		input: {
-			id: z.string().describe('Node id ("12:345", "12-345") or a Figma link with ?node-id=…'),
+			id: z.string().optional().describe('Node id ("12:345", "12-345") or a Figma link with ?node-id=…'),
+			ids: idsField(BATCH_LIMITS.assets),
 		},
 	},
 	export: {
@@ -65,7 +73,7 @@ export const MCP_TOOLS = {
 			ids: z.array(z.string()).min(1).max(30).describe("Node ids (or links with node-id) to export"),
 			format: z.enum(["png", "jpg", "svg", "pdf"]).optional(),
 			scale: z.number().min(0.5).max(4).optional(),
-			folder: z.string().optional().describe("Subfolder name inside the target folder, letters/digits/-_ only"),
+			folder: z.string().optional().describe("Subfolder name inside the target folder, letters (any language), digits, space, - _ ."),
 			dir: z.string().optional().describe("Absolute target folder INSIDE the current project (e.g. <project>/public/img); anything outside the project is refused. Default: <project>/figma-exports"),
 		},
 	},
@@ -76,7 +84,7 @@ export const MCP_TOOLS = {
 			id: z.string().describe("Node id or Figma link with node-id"),
 			kinds: z.enum(["all", "photo", "icon"]).optional().describe("Which assets to export, default all"),
 			scale: z.number().min(0.5).max(4).optional().describe("Raster scale, default 2"),
-			folder: z.string().optional().describe("Subfolder inside the target folder (letters/digits/-_ only)"),
+			folder: z.string().optional().describe("Subfolder inside the target folder (letters (any language), digits, space, - _ .)"),
 			dir: z.string().optional().describe("Absolute target folder INSIDE the current project (e.g. <project>/public/img); anything outside the project is refused. Default: <project>/figma-exports"),
 		},
 	},
@@ -84,7 +92,8 @@ export const MCP_TOOLS = {
 		description:
 			"Design tokens used inside a node: colors (with usage fill/text/stroke), fonts (family, weight, size, line height), radii, gaps, paddings, shadows — most used first. Use it to write CSS variables.",
 		input: {
-			id: z.string().describe("Node id or Figma link with node-id"),
+			id: z.string().optional().describe("Node id or Figma link with node-id"),
+			ids: idsField(BATCH_LIMITS.tokens),
 		},
 	},
 	design_system: {

@@ -64,7 +64,7 @@ export function safeFileName(name, id, ext) {
 export function safeFolder(folder) {
 	const f = String(folder ?? "").trim();
 	if (!f) return "";
-	return /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(f) && !f.includes("..") ? f : null;
+	return /^[\p{L}\p{N}][\p{L}\p{N} ._-]{0,63}$/u.test(f) && !f.includes("..") ? f : null;
 }
 
 // Корень проекта агента: MCP_PROJECT_DIR / CLAUDE_PROJECT_DIR / cwd процесса (агент
@@ -97,7 +97,7 @@ export function exportRoots({ project, extra, fallback }) {
 // Возвращает { root, folder } для saveExported либо { error }.
 export function exportTarget(roots, dir, folder, defaultDir) {
 	const sub = safeFolder(folder);
-	if (sub === null) return { error: "folder: только буквы, цифры, - _ . (до 64 символов)" };
+	if (sub === null) return { error: "folder: буквы (в т.ч. кириллица), цифры, пробел, - _ . (до 64 символов)" };
 	const inside = (p) => roots.find((r) => p === r || p.startsWith(r + sep));
 	if (dir === undefined || dir === null || dir === "") {
 		const def = defaultDir ?? roots[0];
@@ -116,7 +116,7 @@ export function exportTarget(roots, dir, folder, defaultDir) {
 // Записывает файлы из ответа плагина; возвращает пути и метаданные без base64.
 export function saveExported(root, folder, files) {
 	const sub = safeFolder(folder);
-	if (sub === null) throw new Error("folder: только буквы, цифры, - _ . (до 64 символов)");
+	if (sub === null) throw new Error("folder: буквы (в т.ч. кириллица), цифры, пробел, - _ . (до 64 символов)");
 	const dir = resolve(sub ? join(root, sub) : root);
 	const base = resolve(root);
 	if (dir !== base && !dir.startsWith(base + sep)) throw new Error("папка вне exports");

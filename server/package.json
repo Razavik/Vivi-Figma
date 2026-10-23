@@ -1,17 +1,4 @@
 {
-	"name": "vivi-mcp-server",
 	"private": true,
-	"version": "0.2.0",
-	"type": "module",
-	"engines": {
-		"node": ">=18.0.0"
-	},
-	"scripts": {
-		"start": "node index.mjs"
-	},
-	"dependencies": {
-		"@modelcontextprotocol/sdk": "^1.29.0",
-		"ws": "^8.18.0",
-		"zod": "^4.6.7"
-	}
+	"type": "module"
 }

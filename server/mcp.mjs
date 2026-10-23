@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import WebSocket from "ws";
-import { MCP_TOOLS } from "./mcp-tools.mjs";
+import { BATCH_LIMITS, MCP_TOOLS } from "./mcp-tools.mjs";
 import { exportRoots, exportTarget, projectRoot, resolveArgs, saveExported } from "./mcp-export.mjs";
 
 // server/.env — тот же файл, что у моста (порт и токен).
@@ -169,6 +169,27 @@ for (const [name, def] of Object.entries(MCP_TOOLS)) {
 				const isExport = name === "export" || name === "export_assets";
 				const target = isExport ? exportTarget(EXPORT.roots, resolved.args.dir, resolved.args.folder, EXPORT.defaultDir) : null;
 				if (target?.error) throw new Error(target.error);
+				const limit = BATCH_LIMITS[name];
+				const batch = limit && Array.isArray(resolved.args.ids) ? resolved.args.ids : null;
+				if (batch) {
+					if (batch.length > limit) throw new Error(`ids: не больше ${limit} за вызов`);
+					const { ids: _ids, ...rest } = resolved.args;
+					const results = await Promise.all(
+						batch.map((id) =>
+							call(name, { ...rest, id }).then(
+								(r) => ({ id, ok: true, r }),
+								(e) => ({ id, ok: false, error: String(e?.message || e) }),
+							),
+						),
+					);
+					const content = [{ type: "text", text: JSON.stringify(results.map((x) => (x.ok ? (x.r.data ?? null) : { id: x.id, error: x.error }))) }];
+					for (const x of results)
+						if (x.ok)
+							for (const img of x.r.images || [])
+								if (img && typeof img.data === "string") content.push({ type: "image", data: img.data, mimeType: img.mimeType || "image/png" });
+					return { content };
+				}
+				if (limit && !resolved.args.id) throw new Error("нужен id или ids");
 				const res = await call(name, resolved.args);
 				if (isExport && target) {
 					const saved = saveExported(target.root, target.folder, res.data?.files);

@@ -79,6 +79,16 @@ wss.on("connection", (socket, request) => {
 	else servePlugin(socket);
 });
 
+// Порт занят — скорее всего мост уже работает (его запускает MCP-сервер сам).
+httpServer.on("error", (err) => {
+	if (err.code === "EADDRINUSE") {
+		console.log(`vivi-mcp bridge: порт ${PORT} занят — мост, видимо, уже запущен (ws://localhost:${PORT}), второй не нужен.`);
+		process.exit(0);
+	}
+	throw err;
+});
+wss.on("error", () => {});
+
 httpServer.listen(PORT, "127.0.0.1", () => {
 	console.log(`vivi-mcp bridge: ws://localhost:${PORT}`);
 });

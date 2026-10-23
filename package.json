@@ -1,13 +1,43 @@
 {
-	"name": "vivi-mcp",
-	"private": true,
-	"version": "0.2.0",
-	"description": "Vivi MCP: плагин Figma, мост и MCP-сервер для чтения дизайна ИИ-агентами",
+	"name": "vivi-figma-mcp",
+	"version": "0.2.1",
+	"description": "MCP-сервер: ИИ-агенты (Claude Code, Cursor, Devin…) смотрят дизайн в открытом файле Figma и выгружают из него картинки. Только чтение.",
+	"license": "MIT",
+	"type": "module",
+	"keywords": [
+		"mcp",
+		"figma",
+		"model-context-protocol",
+		"design"
+	],
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Razavik/Vivi-Figma.git"
+	},
+	"homepage": "https://github.com/Razavik/Vivi-Figma#readme",
+	"bin": {
+		"vivi-figma-mcp": "server/cli.mjs"
+	},
+	"files": [
+		"server/*.mjs",
+		"server/package.json",
+		"server/.env.example",
+		"plugin/manifest.json",
+		"plugin/dist",
+		"README.md",
+		"LICENSE"
+	],
 	"scripts": {
-		"setup": "npm --prefix server install && npm --prefix plugin install && npm --prefix plugin run build",
+		"setup": "npm install && npm --prefix plugin install && npm --prefix plugin run build",
 		"build": "npm --prefix plugin run build",
-		"start": "npm --prefix server start",
-		"typecheck": "npm --prefix plugin run typecheck"
+		"start": "node server/index.mjs",
+		"typecheck": "npm --prefix plugin run typecheck",
+		"prepublishOnly": "npm --prefix plugin install && npm --prefix plugin run build"
+	},
+	"dependencies": {
+		"@modelcontextprotocol/sdk": "^1.29.0",
+		"ws": "^8.18.0",
+		"zod": "^4.6.7"
 	},
 	"engines": {
 		"node": ">=18.0.0"

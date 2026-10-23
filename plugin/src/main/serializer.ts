@@ -86,6 +86,16 @@ function serializeSpans(node: TextNode, base: AnySpec): void {
 let maxNodes = 150;
 let maxDepth = 6;
 
+// variantProperties бросает исключение, если в наборе компонентов есть ошибки
+// (например, повторяющиеся варианты) — тогда просто пропускаем поле.
+function safeVariants(n: ComponentNode | InstanceNode): Record<string, string> | null {
+	try {
+		return n.variantProperties ?? null;
+	} catch {
+		return null;
+	}
+}
+
 export function setSerializeLimits(nodes = 150, depth = 6): void {
 	maxNodes = nodes;
 	maxDepth = depth;
@@ -246,8 +256,8 @@ function serializeBase(node: SceneNode, depth: number): AnySpec | null {
 				base.type = "instance";
 				base.component = main.id;
 				// Вариант набора: текущие свойства и id самого набора.
-				if (main.variantProperties)
-					base.variants = main.variantProperties;
+				const mainVariants = safeVariants(main);
+				if (mainVariants) base.variants = mainVariants;
 				if (main.parent && main.parent.type === "COMPONENT_SET")
 					base.componentSet = main.parent.id;
 				base.componentName = main.parent?.type === "COMPONENT_SET" ? main.parent.name : main.name;
@@ -294,14 +304,19 @@ function serializeBase(node: SceneNode, depth: number): AnySpec | null {
 			base.type =
 				node.type === "COMPONENT_SET" ? "component_set" : "frame";
 			if (node.type === "COMPONENT") base.component = true;
-			if (node.type === "COMPONENT_SET")
-				base.variantGroupProperties = node.variantGroupProperties;
+			if (node.type === "COMPONENT_SET") {
+				try {
+					base.variantGroupProperties = node.variantGroupProperties;
+				} catch {
+					/* набор с ошибками (дубликаты вариантов) */
+				}
+			}
 			// Группа отличается от фрейма: у неё нет auto-layout/fill/padding.
 			if (node.type === "GROUP") base.group = true;
 			// Вариант внутри набора: его свойства, id набора и связи.
 			if (node.type === "COMPONENT") {
-				if (node.variantProperties)
-					base.variants = node.variantProperties;
+				const variants = safeVariants(node);
+				if (variants) base.variants = variants;
 				if (node.parent && node.parent.type === "COMPONENT_SET")
 					base.componentSet = node.parent.id;
 				const interactions = serializeInteractions(node);
