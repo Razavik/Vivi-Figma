@@ -37,6 +37,25 @@ export function validateSpec(value) {
 	return null;
 }
 
+// Фрейм с auto-layout без размера должен вести себя как в вёрстке — по содержимому
+// (hug), а не получать стартовые 100 px, из-за которых содержимое вылезает и
+// налезает на соседей. Корню ширину не задаём: она обязана быть числом.
+export function applyLayoutDefaults(value) {
+	let fixed = 0;
+	for (const n of nodesOf(value)) {
+		if (n.type !== "frame" || (n.layout !== "vertical" && n.layout !== "horizontal")) continue;
+		if (n.h === undefined) {
+			n.h = "hug";
+			fixed++;
+		}
+		if (n.w === undefined && n !== value) {
+			n.w = "hug";
+			fixed++;
+		}
+	}
+	return fixed;
+}
+
 // Мутирует value, возвращает отчёт для агента.
 export async function prepareDesign(value, { env = process.env } = {}) {
 	const icons = processDesign(value);

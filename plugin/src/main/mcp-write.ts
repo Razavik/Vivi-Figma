@@ -126,6 +126,8 @@ async function freePlace(args: Record<string, unknown>): Promise<ReplacePlace | 
 export async function runCreate(args: Record<string, unknown>): Promise<WriteResult> {
 	const spec = args.spec as AnySpec | undefined;
 	if (!spec || typeof spec !== "object" || spec.type !== "frame") return { ok: false, error: "spec: корневой узел должен быть frame" };
+	// Корень с auto-layout без высоты — по содержимому (иначе высота остаётся стартовой и всё вылезает).
+	if ((spec.layout === "vertical" || spec.layout === "horizontal") && spec.h === undefined) spec.h = "hug";
 	resetState();
 	const before = new Set(figma.currentPage.children.map((n) => n.id));
 	try {
@@ -140,7 +142,16 @@ export async function runCreate(args: Record<string, unknown>): Promise<WriteRes
 			const target = await figma.getNodeByIdAsync(args.parent);
 			if (!target || target.removed || !("children" in target) || target.type === "INSTANCE")
 				return { ok: false, error: `parent: нода ${args.parent} не найдена или в неё нельзя вставлять` };
-			place = { x: 0, y: 0, parent: target as BaseNode & ChildrenMixin, index: (target as ChildrenMixin).children.length };
+			// Размер в родителе с auto-layout: "fill"/"hug" из спеки применяется после вставки.
+			const sizing = (v: unknown): "FILL" | "HUG" | undefined => (v === "fill" ? "FILL" : v === "hug" ? "HUG" : undefined);
+			place = {
+				x: 0,
+				y: 0,
+				parent: target as BaseNode & ChildrenMixin,
+				index: (target as ChildrenMixin).children.length,
+				sizingH: sizing(spec.w),
+				sizingV: sizing(spec.h),
+			};
 		} else {
 			place = await freePlace(args);
 		}

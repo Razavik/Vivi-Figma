@@ -16,7 +16,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import WebSocket from "ws";
 import { BATCH_LIMITS, MCP_TOOLS, timeoutFor } from "./mcp-tools.mjs";
 import { guideText } from "./design-guide.mjs";
-import { prepareDesign, validateSpec } from "./design-pipeline.mjs";
+import { applyLayoutDefaults, prepareDesign, validateSpec } from "./design-pipeline.mjs";
 import { searchIcons } from "./icons.mjs";
 import { SCHEMA_NAMES, schemaText } from "./schemas.mjs";
 import { exportRoots, exportTarget, projectRoot, resolveArgs, saveExported } from "./mcp-export.mjs";
@@ -207,6 +207,7 @@ for (const [name, def] of Object.entries(MCP_TOOLS)) {
 					const payload = name === "create" ? resolved.args.spec : resolved.args.edits;
 					const bad = validateSpec(payload);
 					if (bad) throw new Error(bad);
+					applyLayoutDefaults(payload);
 					prepared = await prepareDesign(payload);
 				}
 				const limit = BATCH_LIMITS[name];

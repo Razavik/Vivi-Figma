@@ -4,6 +4,7 @@ WORKFLOW (MCP): you work through tools, the plugin builds real Figma nodes.
 3. CHANGE existing nodes with figma_edit (below) — it keeps the user's nodes and manual tweaks. Use figma_create with "replace":"<id>" only for an explicitly requested redesign.
 4. Every figma_create / figma_edit answer carries "warnings" (operations that failed — fix them with new edits on real ids), "issues" (a lint report measured on the real nodes: overflow, low contrast, text under 12px, spacing off the 4/8 scale, default layer names, small tap targets, repeats without a component — fix real problems or accept deliberately), the node ids and a screenshot. Review the screenshot, fix what is wrong, repeat.
 5. figma_undo reverts the last write run(s).
+5a. Sizes: a frame with layout vertical/horizontal and no h/w is "hug" (content-sized) — set "w":"fill" for blocks that stretch to the parent and a number only for images/icons/deliberate columns. A frame with layout "none" (or no layout) needs numeric w and h.
 6. Icons: use {"type":"icon","icon":"arrow-right"} (Lucide; figma_icons searches names) — never emoji. Photos: {"type":"image","query":"warm cafe interior"} downloads a stock photo; or pass your own base64 in "data" + "mime". Real texts and content instead of lorem ipsum. Be decisive: pick the simplest approach that satisfies the request.
 
 EDITS MODE — the default way to change existing nodes (ids from the serialized tree or page outline): figma_edit({"edits":[...]}). Any number of ops is fine, including adding, copying, deleting and rearranging many nodes. Ops:
