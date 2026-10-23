@@ -73,7 +73,25 @@ function servePlugin(socket) {
 	socket.send(JSON.stringify({ type: "ready" }));
 }
 
+// Без клиентов (ни агента, ни плагина) мост сам завершается: MCP-сервер
+// запустит его снова при следующем вызове. IDLE_EXIT_MIN=0 — не завершаться.
+const IDLE_MS = Number(process.env.IDLE_EXIT_MIN ?? 15) * 60_000;
+let idleTimer = null;
+function checkIdle() {
+	clearTimeout(idleTimer);
+	if (!IDLE_MS || wss.clients.size > 0) return;
+	idleTimer = setTimeout(() => {
+		if (wss.clients.size === 0) {
+			console.log("vivi-mcp bridge: нет клиентов — завершаюсь");
+			process.exit(0);
+		}
+	}, IDLE_MS);
+	idleTimer.unref?.();
+}
+
 wss.on("connection", (socket, request) => {
+	socket.on("close", checkIdle);
+	checkIdle();
 	const role = new URL(request.url || "/", "ws://localhost").searchParams.get("role");
 	if (role === "mcp") serveMcpClient(socket);
 	else servePlugin(socket);
@@ -90,5 +108,6 @@ httpServer.on("error", (err) => {
 wss.on("error", () => {});
 
 httpServer.listen(PORT, "127.0.0.1", () => {
+	checkIdle();
 	console.log(`vivi-mcp bridge: ws://localhost:${PORT}`);
 });
