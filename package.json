@@ -1,6 +1,6 @@
 {
 	"name": "vivi-figma-mcp",
-	"version": "0.2.1",
+	"version": "0.2.2",
 	"description": "MCP-сервер: ИИ-агенты (Claude Code, Cursor, Devin…) смотрят дизайн в открытом файле Figma и выгружают из него картинки. Только чтение.",
 	"license": "MIT",
 	"type": "module",
