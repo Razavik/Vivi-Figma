@@ -1,12 +1,16 @@
 {
-	"name": "Vivi Agent",
-	"id": "claude-design-agent-dev",
+	"name": "Vivi MCP",
+	"id": "vivi-figma-mcp-dev",
 	"api": "1.0.0",
 	"main": "dist/code.js",
 	"ui": "dist/ui.html",
-	"editorType": ["figma"],
+	"editorType": [
+		"figma"
+	],
 	"networkAccess": {
-		"allowedDomains": ["ws://localhost:8787"],
-		"reasoning": "Подключение к локальному серверу-мосту, который общается с Claude через ACP"
+		"allowedDomains": [
+			"ws://localhost:8787"
+		],
+		"reasoning": "Подключение к локальному мосту Vivi: через него MCP-клиенты читают дизайн открытого файла"
 	}
 }

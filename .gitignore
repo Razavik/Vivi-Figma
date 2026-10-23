@@ -4,8 +4,7 @@ dist/
 .env
 .test-build/
 server/exports/
-plugin/tmp/
-TestMCP/
-*.tsbuildinfo
+figma-exports/
 CLAUDE.md
 plans/
+TestMCP/

@@ -1,7 +1,7 @@
 {
-	"name": "figma-agent-plugin",
+	"name": "vivi-mcp-plugin",
 	"private": true,
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"scripts": {
 		"build": "node build.mjs",
 		"typecheck": "tsc --noEmit && tsc --noEmit -p src/main",

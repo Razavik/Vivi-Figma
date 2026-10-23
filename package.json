@@ -1,0 +1,16 @@
+{
+	"name": "vivi-mcp",
+	"private": true,
+	"version": "0.2.0",
+	"description": "Vivi MCP: плагин Figma, мост и MCP-сервер для чтения дизайна ИИ-агентами",
+	"scripts": {
+		"setup": "npm --prefix server install && npm --prefix plugin install && npm --prefix plugin run build",
+		"build": "npm --prefix plugin run build",
+		"start": "npm --prefix server start",
+		"test": "npm --prefix server test && npm --prefix plugin test",
+		"typecheck": "npm --prefix plugin run typecheck"
+	},
+	"engines": {
+		"node": ">=18.0.0"
+	}
+}

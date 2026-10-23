@@ -1,7 +1,10 @@
 {
 	"compilerOptions": {
 		"target": "ES2020",
-		"lib": ["ES2020", "DOM"],
+		"lib": [
+			"ES2020",
+			"DOM"
+		],
 		"module": "ESNext",
 		"moduleResolution": "Bundler",
 		"strict": true,
@@ -9,5 +12,7 @@
 		"skipLibCheck": true,
 		"types": []
 	},
-	"include": ["src/ui/**/*.ts", "src/spec.ts"]
+	"include": [
+		"src/ui/**/*.ts"
+	]
 }
