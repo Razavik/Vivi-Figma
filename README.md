@@ -29,7 +29,6 @@ MCP-клиент ──stdio──> server/mcp.mjs ──WebSocket──> server
 ```bash
 git clone https://github.com/Razavik/Vivi-Figma.git
 cd Vivi-Figma
-git checkout mcp-only        # если репозиторий склонирован с другой веткой по умолчанию
 
 npm run setup                # зависимости моста и плагина + сборка плагина
 ```
