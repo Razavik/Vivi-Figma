@@ -1,0 +1,199 @@
+// MCP-сервер Vivi (stdio): внешние агенты (Claude Code, Devin, Cursor…) могут
+// смотреть дизайн в открытом файле Figma. Только чтение. Данные берутся из
+// плагина через мост: этот процесс подключается к ws://localhost:8787 как
+// клиент role=mcp, мост пересылает вызов в плагин и возвращает ответ.
+//
+// Подключение (пример для Claude Code):
+//   claude mcp add vivi-figma -- node D:/Work/Learning/FigmaAgent/server/mcp.mjs
+// Мост (npm start) и плагин в Figma должны быть запущены.
+import { spawn } from "node:child_process";
+import { openSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import WebSocket from "ws";
+import { MCP_TOOLS } from "./mcp-tools.mjs";
+import { exportRoots, exportTarget, projectRoot, resolveArgs, saveExported } from "./mcp-export.mjs";
+
+// server/.env — тот же файл, что у моста (порт и токен).
+try {
+	const dir = dirname(fileURLToPath(import.meta.url));
+	for (const line of readFileSync(join(dir, ".env"), "utf-8").split(/\r?\n/)) {
+		const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
+		if (m && !(m[1] in process.env)) process.env[m[1]] = m[2].replace(/^["']|["']$/g, "");
+	}
+} catch {
+	/* .env необязателен */
+}
+
+const PORT = Number(process.env.PORT || 8787);
+const TOKEN = process.env.BRIDGE_TOKEN || "";
+const CALL_TIMEOUT = 40_000;
+const SERVER_DIR = dirname(fileURLToPath(import.meta.url));
+// Куда складываются экспортированные картинки (дальше этой папки писать нельзя).
+const PROJECT = projectRoot(process.env, process.cwd(), homedir());
+const EXPORT = exportRoots({
+	project: PROJECT,
+	extra: process.env.MCP_EXPORT_ROOTS,
+	fallback: process.env.MCP_EXPORT_DIR || join(SERVER_DIR, "exports"),
+});
+
+let socket = null;
+let opening = null;
+let seq = 0;
+const waiting = new Map();
+
+// Мост не запущен — поднимаем его в фоне (отдельный процесс, переживает этот):
+// лог в server/bridge.log. MCP_NO_AUTOSTART=1 отключает. Параллельные запуски
+// безопасны: лишний мост упадёт на занятом порте, а клиенты подключатся к первому.
+let starting = null;
+function startBridge() {
+	if (starting) return starting;
+	let out = "ignore";
+	try {
+		out = openSync(join(SERVER_DIR, "bridge.log"), "a");
+	} catch {
+		/* без лога тоже работаем */
+	}
+	const child = spawn(process.execPath, [join(SERVER_DIR, "index.mjs")], {
+		cwd: SERVER_DIR,
+		detached: true,
+		stdio: ["ignore", out, out],
+		windowsHide: true,
+		env: process.env,
+	});
+	child.on("error", () => {});
+	child.unref();
+	console.error("vivi-figma MCP: мост не был запущен — стартую в фоне (лог server/bridge.log)");
+	starting = new Promise((r) => setTimeout(r, 800)).finally(() => setTimeout(() => (starting = null), 20_000));
+	return starting;
+}
+
+async function open() {
+	try {
+		return await connectOnce();
+	} catch (err) {
+		if (process.env.MCP_NO_AUTOSTART === "1" || /токен/.test(String(err?.message))) throw err;
+		await startBridge();
+		let last = err;
+		for (let i = 0; i < 30; i++) {
+			await new Promise((r) => setTimeout(r, 500));
+			try {
+				return await connectOnce();
+			} catch (e) {
+				last = e;
+			}
+		}
+		throw last;
+	}
+}
+
+function connectOnce() {
+	if (socket && socket.readyState === WebSocket.OPEN) return Promise.resolve(socket);
+	if (opening) return opening;
+	opening = new Promise((resolve, reject) => {
+		const url = new URL(`ws://127.0.0.1:${PORT}/`);
+		url.searchParams.set("role", "mcp");
+		if (TOKEN) url.searchParams.set("token", TOKEN);
+		const ws = new WebSocket(url);
+		ws.on("open", () => {
+			socket = ws;
+			opening = null;
+			resolve(ws);
+		});
+		ws.on("message", (raw) => {
+			let msg;
+			try {
+				msg = JSON.parse(raw.toString());
+			} catch {
+				return;
+			}
+			const item = waiting.get(msg.reqId);
+			if (msg.type !== "mcp_result" || !item) return;
+			waiting.delete(msg.reqId);
+			clearTimeout(item.timer);
+			if (msg.ok) item.resolve(msg);
+			else item.reject(new Error(msg.error || "ошибка"));
+		});
+		ws.on("close", (code) => {
+			if (socket === ws) socket = null;
+			opening = null;
+			for (const [id, item] of waiting) {
+				clearTimeout(item.timer);
+				item.reject(new Error(code === 4401 ? "мост отклонил токен (BRIDGE_TOKEN)" : "соединение с мостом закрыто"));
+				waiting.delete(id);
+			}
+		});
+		ws.on("error", () => {
+			opening = null;
+			reject(new Error(`мост не отвечает на ws://127.0.0.1:${PORT} и не запустился сам — проверьте server/bridge.log или запустите вручную (cd server && npm start)`));
+		});
+	});
+	return opening;
+}
+
+async function call(tool, args) {
+	const ws = await open();
+	const reqId = `c${++seq}`;
+	return new Promise((resolve, reject) => {
+		const timer = setTimeout(() => {
+			waiting.delete(reqId);
+			reject(new Error("мост не ответил вовремя"));
+		}, CALL_TIMEOUT);
+		waiting.set(reqId, { resolve, reject, timer });
+		ws.send(JSON.stringify({ type: "mcp_call", reqId, tool, args }));
+	});
+}
+
+const server = new McpServer({ name: "vivi-figma", version: "0.1.0" });
+
+for (const [name, def] of Object.entries(MCP_TOOLS)) {
+	server.registerTool(
+		`figma_${name}`,
+		{
+			description: def.description,
+			inputSchema: def.input,
+			annotations: { readOnlyHint: true, openWorldHint: false },
+		},
+		async (args) => {
+			try {
+				// Ссылки Figma и id вида 12-345 → "12:345"; ссылка на другой файл — отказ.
+				const resolved = resolveArgs(args || {});
+				if (resolved.error) throw new Error(resolved.error);
+				if (resolved.fileKey) {
+					const st = (await call("status", {})).data;
+					if (st?.fileKey && st.fileKey !== resolved.fileKey)
+						throw new Error(`ссылка на другой файл (${resolved.fileKey}), а в Figma открыт ${st.fileKey}: откройте нужный файл с плагином`);
+				}
+				// Куда писать картинки — проверяем до вызова плагина.
+				const isExport = name === "export" || name === "export_assets";
+				const target = isExport ? exportTarget(EXPORT.roots, resolved.args.dir, resolved.args.folder, EXPORT.defaultDir) : null;
+				if (target?.error) throw new Error(target.error);
+				const res = await call(name, resolved.args);
+				if (isExport && target) {
+					const saved = saveExported(target.root, target.folder, res.data?.files);
+					return {
+						content: [
+							{
+								type: "text",
+								text: JSON.stringify({ dir: saved.dir, files: saved.files, skipped: res.data?.skipped ?? [], ...(res.data?.assets ? { assets: res.data.assets } : {}) }),
+							},
+						],
+					};
+				}
+				const content = [{ type: "text", text: JSON.stringify(res.data ?? null) }];
+				for (const img of res.images || [])
+					if (img && typeof img.data === "string")
+						content.push({ type: "image", data: img.data, mimeType: img.mimeType || "image/png" });
+				return { content };
+			} catch (err) {
+				return { isError: true, content: [{ type: "text", text: String(err?.message || err) }] };
+			}
+		},
+	);
+}
+
+await server.connect(new StdioServerTransport());
+console.error("vivi-figma MCP: готов (stdio), мост ws://127.0.0.1:" + PORT + "; картинки только в " + EXPORT.roots.join("; "));

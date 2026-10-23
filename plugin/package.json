@@ -1,0 +1,15 @@
+{
+	"name": "figma-agent-plugin",
+	"private": true,
+	"version": "0.1.0",
+	"scripts": {
+		"build": "node build.mjs",
+		"typecheck": "tsc --noEmit && tsc --noEmit -p src/main",
+		"test": "node test/run.mjs"
+	},
+	"devDependencies": {
+		"@figma/plugin-typings": "^1.100.0",
+		"esbuild": "^0.25.0",
+		"typescript": "^5.6.0"
+	}
+}

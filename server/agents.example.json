@@ -1,0 +1,11 @@
+{
+	"agents": {
+		"gemini": {
+			"label": "Gemini CLI",
+			"command": "gemini",
+			"args": ["--experimental-acp"],
+			"authMethodId": "api-key",
+			"apiKeyEnv": "GEMINI_API_KEY"
+		}
+	}
+}

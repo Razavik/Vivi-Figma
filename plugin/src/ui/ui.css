@@ -1,0 +1,2369 @@
+* {
+	box-sizing: border-box;
+	margin: 0;
+}
+[hidden] {
+	display: none !important;
+}
+body {
+	font-family:
+		"Inter",
+		-apple-system,
+		sans-serif;
+	font-size: 12px;
+	color: var(--figma-color-text, #1e1e1e);
+	background: var(--figma-color-bg, #fff);
+	padding: 8px;
+	display: flex;
+	flex-direction: column;
+	height: 100vh;
+	gap: 8px;
+}
+
+#messages {
+	flex: 1;
+	overflow-y: auto;
+	display: flex;
+	flex-direction: column;
+	gap: 7px;
+	padding: 2px 8px 2px 0;
+	/* лента заходит в зону правого отступа body — скроллбар у самого края */
+	margin-right: -8px;
+	/* резервируем место под скроллбар — контент не скачет
+	   при его появлении */
+	scrollbar-gutter: stable;
+}
+/* Ползунок ближе к краю: прозрачная рамка уже, чем у остальных скроллов. */
+#messages::-webkit-scrollbar-thumb {
+	border-width: 1px;
+}
+#messages:empty::before {
+	content: "Опишите дизайн — агент соберёт его в Figma";
+	margin: auto;
+	color: var(--figma-color-text-tertiary, #b3b3b3);
+	text-align: center;
+	padding: 20px;
+}
+.interrupted-prompt {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 10px;
+	padding: 10px;
+	border: 1px solid var(--figma-color-border, #d9d9d9);
+	border-radius: 8px;
+	background: var(--figma-color-bg-secondary, #f5f5f5);
+	font-size: 12px;
+}
+
+.interrupted-prompt span {
+	flex: 1;
+}
+
+.interrupted-prompt button {
+	padding: 5px 8px;
+	border: 1px solid var(--figma-color-border, #d9d9d9);
+	border-radius: 6px;
+	background: var(--figma-color-bg, #fff);
+	color: var(--figma-color-text, #1e1e1e);
+	cursor: pointer;
+}
+
+.msg {
+	max-width: 88%;
+	padding: 8px 10px;
+	border-radius: 10px;
+	line-height: 1.45;
+	word-break: break-word;
+}
+.msg.user {
+	align-self: flex-end;
+	white-space: pre-wrap;
+	background: var(--figma-color-bg-brand, #9747ff);
+	color: var(--figma-color-text-onbrand, #fff);
+	border-bottom-right-radius: 3px;
+}
+/* Прикреплённое к сообщению выделение с канваса */
+.msg-sel {
+	display: block;
+	width: fit-content;
+	margin-top: 4px;
+	padding: 1px 6px;
+	border-radius: 999px;
+	font-size: 9px;
+	font-weight: 600;
+	background: rgba(255, 255, 255, 0.22);
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.msg.agent {
+	align-self: stretch;
+	max-width: 100%;
+	background: none;
+	border: none;
+	border-radius: 0;
+	padding: 1px 4px;
+	color: var(--figma-color-text-secondary, #555);
+}
+.msg.agent.error .agent-title,
+.msg.agent.error .agent-meta {
+	color: var(--figma-color-text-danger, #e03e1a);
+}
+.agent-title {
+	font-weight: 600;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+.agent-meta {
+	font-size: 10px;
+	color: var(--figma-color-text-secondary, #7b7b7b);
+	margin-top: 3px;
+	white-space: pre-wrap;
+}
+.agent-warnings {
+	font-size: 10px;
+	color: var(--figma-color-text-secondary, #7b7b7b);
+	margin-top: 4px;
+	white-space: pre-wrap;
+}
+/* Обычная строка агента — текст от самой модели (summary) */
+.agent-plain {
+	color: var(--figma-color-text-secondary, #7b7b7b);
+	font-weight: 400;
+}
+/* Строка вызова инструмента — моноширинная, приглушённая */
+.agent-tool {
+	font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+	font-size: 10px;
+	color: var(--figma-color-text-tertiary, #999);
+}
+.agent-tool::before {
+	content: "→ ";
+}
+
+/* План работы — выпадающая карточка под кнопкой в углу */
+.plan-pop {
+	position: absolute;
+	top: 42px;
+	right: 8px;
+	z-index: 32;
+	width: min(300px, calc(100% - 16px));
+	max-height: calc(100% - 120px);
+	overflow-y: auto;
+	box-sizing: border-box;
+	padding: 10px 12px 12px;
+	border: 1px solid var(--figma-color-border, #e6e6e6);
+	border-radius: 10px;
+	background: var(--figma-color-bg, #fff);
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+}
+.plan-pop[hidden],
+.corner-btn[hidden] {
+	display: none;
+}
+.corner-btn.active {
+	color: var(--figma-color-text, #1e1e1e);
+	background: var(--figma-color-bg-secondary, #f5f5f5);
+}
+.plan-head {
+	font-size: 9px;
+	font-weight: 700;
+	letter-spacing: 0.07em;
+	text-transform: uppercase;
+	color: var(--figma-color-text-tertiary, #999);
+	margin-bottom: 6px;
+}
+.plan-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	counter-reset: plan;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+.plan-list li {
+	counter-increment: plan;
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	font-size: 11px;
+	line-height: 1.35;
+	color: var(--figma-color-text, #333);
+}
+.plan-list li::before {
+	content: counter(plan);
+	flex: 0 0 auto;
+	width: 16px;
+	height: 16px;
+	border-radius: 5px;
+	background: var(--figma-color-bg-brand-tertiary, #e5f4ff);
+	color: var(--figma-color-text-brand, #0d99ff);
+	font-size: 9px;
+	font-weight: 700;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+/* Готовая часть: зелёная галочка вместо номера, текст приглушён */
+.plan-list li.done {
+	color: var(--figma-color-text-secondary, #7b7b7b);
+}
+.plan-list li.done::before {
+	content: "✓";
+	font-size: 10px;
+	background: var(--figma-color-bg-success-tertiary, #dcf5e4);
+	color: var(--figma-color-text-success, #14ae5c);
+}
+.plan-head {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+.plan-progress {
+	letter-spacing: 0;
+	color: var(--figma-color-text-secondary, #7b7b7b);
+}
+/* Все части готовы — кнопка плана с зелёной иконкой */
+.corner-btn.complete {
+	color: var(--figma-color-text-success, #14ae5c);
+}
+
+/* Стримящийся thinking модели — сворачиваемый блок */
+.thought-head {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 9px;
+	font-weight: 700;
+	letter-spacing: 0.07em;
+	text-transform: uppercase;
+	color: var(--figma-color-text-tertiary, #999);
+	cursor: pointer;
+	user-select: none;
+}
+.thought-head svg {
+	flex: 0 0 auto;
+	transition: transform 0.15s;
+}
+.msg.agent.thought.closed .thought-head svg {
+	transform: rotate(-90deg);
+}
+.thought-body {
+	font-style: italic;
+	font-size: 11px;
+	line-height: 1.5;
+	color: var(--figma-color-text-tertiary, #999);
+	white-space: pre-wrap;
+	word-break: break-word;
+	max-height: 140px;
+	overflow-y: auto;
+	margin-top: 3px;
+	padding-left: 12px;
+}
+.msg.agent.thought.closed .thought-body {
+	display: none;
+}
+
+/* Тонкие скроллбары */
+*::-webkit-scrollbar {
+	width: 8px;
+	height: 8px;
+}
+*::-webkit-scrollbar-track {
+	background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+	background: var(--figma-color-border, #d9d9d9);
+	border-radius: 4px;
+	border: 2px solid transparent;
+	background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+	background: var(--figma-color-text-tertiary, #999);
+	background-clip: content-box;
+}
+
+.dots {
+	display: inline-flex;
+	gap: 3px;
+}
+.dots i {
+	width: 4px;
+	height: 4px;
+	border-radius: 50%;
+	background: var(--figma-color-text-secondary, #7b7b7b);
+	animation: blink 1.2s infinite;
+}
+.dots i:nth-child(2) {
+	animation-delay: 0.2s;
+}
+.dots i:nth-child(3) {
+	animation-delay: 0.4s;
+}
+@keyframes blink {
+	0%,
+	80%,
+	100% {
+		opacity: 0.25;
+	}
+	40% {
+		opacity: 1;
+	}
+}
+
+/* Композер в стиле панели Devin: карточка, поле + нижний бар */
+.composer {
+	border: 1px solid var(--figma-color-border, #d9d9d9);
+	border-radius: 14px;
+	background: var(--figma-color-bg-secondary, #f5f5f5);
+	padding: 5px;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+.composer:focus-within {
+	border-color: var(--figma-color-border-selected, #9747ff);
+}
+.composer textarea {
+	width: 100%;
+	border: none;
+	background: transparent;
+	font: inherit;
+	color: inherit;
+	resize: none;
+	min-height: 26px;
+	max-height: 110px;
+	padding: 4px 6px 0;
+}
+.composer textarea:focus {
+	outline: none;
+}
+.composer textarea::placeholder {
+	color: var(--figma-color-text-tertiary, #999);
+}
+.composer-bar {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+.bar-left {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex: 1;
+	min-width: 0;
+	flex-wrap: wrap;
+}
+/* Кастомный дропдаун модели: пилюля-кнопка + всплывающий список */
+.model-dd {
+	position: relative;
+	flex: 0 1 auto;
+	min-width: 0;
+}
+.pill {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	border: 1px solid var(--figma-color-border, #d9d9d9);
+	background: var(--figma-color-bg, #fff);
+	color: var(--figma-color-text, #1e1e1e);
+	border-radius: 999px;
+	font-family: inherit;
+	font-size: 11px;
+	font-weight: 600;
+	padding: 0 10px;
+	min-height: 26px;
+	box-sizing: border-box;
+	max-width: 170px;
+	cursor: pointer;
+}
+.pill .label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.pill svg {
+	flex: 0 0 auto;
+	transition: transform 0.15s;
+}
+.pill:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+.model-dd.open .pill svg:last-child {
+	transform: rotate(180deg);
+}
+.dd-list {
+	position: absolute;
+	bottom: calc(100% + 6px);
+	left: 0;
+	min-width: 230px;
+	max-height: 240px;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+	background: var(--figma-color-bg, #fff);
+	border: 1px solid var(--figma-color-border, #d9d9d9);
+	border-radius: 10px;
+	box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+	padding: 3px;
+	z-index: 10;
+}
+.dd-group {
+	font-size: 9px;
+	font-weight: 700;
+	letter-spacing: 0.07em;
+	text-transform: uppercase;
+	color: var(--figma-color-text-tertiary, #999);
+	padding: 5px 7px 2px;
+}
+.dd-item {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	width: 100%;
+	text-align: left;
+	border: none;
+	background: none;
+	font: inherit;
+	font-size: 11.5px;
+	color: var(--figma-color-text, #1e1e1e);
+	padding: 5px 8px;
+	border-radius: 6px;
+	cursor: pointer;
+}
+.dd-item:hover {
+	background: var(--figma-color-bg-secondary, #f5f5f5);
+}
+.dd-item .tick {
+	width: 12px;
+	flex: 0 0 auto;
+	order: 2;
+	margin-left: auto;
+	visibility: hidden;
+}
+.dd-item .dd-tag {
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+	margin-left: -2px;
+	font-size: 10.5px;
+	font-weight: 400;
+	color: var(--figma-color-text-tertiary, #999);
+}
+.dd-item.active {
+	font-weight: 600;
+	color: var(--figma-color-text-brand, #9747ff);
+}
+.dd-item.active .tick {
+	visibility: visible;
+}
+/* Чип контекста над полем ввода: к запросу приложено выделение с канваса */
+.ctx-chip {
+	display: inline-flex;
+	align-items: center;
+	align-self: flex-start;
+	gap: 4px;
+	border: 1px dashed var(--figma-color-border, #d9d9d9);
+	border-radius: 999px;
+	font-size: 10px;
+	color: var(--figma-color-text-secondary, #7b7b7b);
+	padding: 3px 6px 3px 8px;
+	white-space: nowrap;
+	overflow: hidden;
+	max-width: 100%;
+}
+.ctx-chip span {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.ctx-chip svg {
+	flex: 0 0 auto;
+}
+.ctx-chip button {
+	border: none;
+	background: none;
+	color: inherit;
+	font: inherit;
+	font-size: 13px;
+	line-height: 1;
+	cursor: pointer;
+	padding: 0 2px;
+	border-radius: 50%;
+}
+.ctx-chip button:hover {
+	color: var(--figma-color-text, #1e1e1e);
+}
+.send-btn {
+	flex: 0 0 auto;
+	width: 28px;
+	height: 28px;
+	border: none;
+	border-radius: 50%;
+	display: grid;
+	place-items: center;
+	cursor: pointer;
+	background: var(--figma-color-bg-brand, #9747ff);
+	color: var(--figma-color-text-onbrand, #fff);
+}
+.send-btn:disabled {
+	opacity: 0.35;
+	cursor: default;
+}
+.send-btn.stop {
+	background: var(--figma-color-bg-danger, #e03e1a);
+}
+/* Кнопка очистки чата — круглая пилюля в стиле бара композера */
+.icon-btn {
+	display: grid;
+	place-items: center;
+	width: 26px;
+	height: 26px;
+	padding: 0;
+	border: 1px solid var(--figma-color-border, #d9d9d9);
+	border-radius: 999px;
+	background: var(--figma-color-bg, #fff);
+	color: var(--figma-color-text-secondary, #7b7b7b);
+	cursor: pointer;
+	flex: 0 0 auto;
+	line-height: 0;
+	transition:
+		color 0.12s,
+		border-color 0.12s,
+		background 0.12s;
+}
+.icon-btn svg {
+	display: block;
+}
+.icon-btn:hover {
+	color: var(--figma-color-text-danger, #e03e1a);
+	border-color: var(--figma-color-text-danger, #e03e1a);
+	background: var(--figma-color-bg-secondary, #f5f5f5);
+}
+#status {
+	font-size: 10px;
+	color: var(--figma-color-text-secondary, #7b7b7b);
+	min-height: 12px;
+	padding: 0 2px;
+}
+#status.error {
+	color: var(--figma-color-text-danger, #e03e1a);
+}
+
+/* Markdown в репликах агента и размышлениях */
+.md {
+	white-space: normal;
+	word-break: break-word;
+	line-height: 1.5;
+}
+.md > :first-child {
+	margin-top: 0;
+}
+.md > :last-child {
+	margin-bottom: 0;
+}
+.md p,
+.md ul,
+.md ol,
+.md blockquote,
+.md pre {
+	margin: 0 0 6px;
+}
+.md ul,
+.md ol {
+	padding-left: 18px;
+}
+.md li {
+	margin: 1px 0;
+}
+.md strong {
+	font-weight: 600;
+	color: var(--figma-color-text, #333);
+}
+.thought-body.md strong {
+	color: inherit;
+}
+.md code {
+	font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+	font-size: 0.92em;
+	font-style: normal;
+	background: var(--figma-color-bg-secondary, rgba(128, 128, 128, 0.15));
+	border-radius: 3px;
+	padding: 0 3px;
+}
+.md pre {
+	background: var(--figma-color-bg-secondary, rgba(128, 128, 128, 0.15));
+	border-radius: 4px;
+	padding: 6px 8px;
+	overflow-x: auto;
+	white-space: pre;
+}
+.md pre code {
+	background: none;
+	padding: 0;
+}
+.md blockquote {
+	border-left: 2px solid var(--figma-color-border, rgba(128, 128, 128, 0.4));
+	padding-left: 8px;
+	color: var(--figma-color-text-tertiary, #999);
+}
+.md hr {
+	border: none;
+	border-top: 1px solid var(--figma-color-border, rgba(128, 128, 128, 0.3));
+	margin: 6px 0;
+}
+.md a {
+	color: var(--figma-color-text-brand, #0d99ff);
+}
+.md-h {
+	font-weight: 600;
+	margin: 6px 0 3px;
+	color: var(--figma-color-text, #333);
+}
+.md-h1 {
+	font-size: 1.25em;
+}
+.md-h2 {
+	font-size: 1.15em;
+}
+
+/* Статус-разделитель: «Остановлено», «Отменено» */
+.status-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 4px 0;
+	color: var(--figma-color-text-tertiary, #999);
+}
+.status-line {
+	flex: 1;
+	height: 1px;
+	background: var(--figma-color-border, rgba(128, 128, 128, 0.3));
+}
+.status-pill {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	padding: 2px 9px;
+	font-size: 10px;
+	font-weight: 500;
+	letter-spacing: 0.02em;
+	border: 1px solid var(--figma-color-border, rgba(128, 128, 128, 0.3));
+	border-radius: 999px;
+	background: var(--figma-color-bg-secondary, rgba(128, 128, 128, 0.08));
+}
+.status-row.stopped .status-pill {
+	color: var(--figma-color-text-warning, #d9822b);
+	border-color: currentColor;
+	background: transparent;
+}
+.status-row.info .status-pill {
+	color: var(--figma-color-text-secondary, #7b7b7b);
+}
+.status-row.error .status-pill {
+	color: var(--figma-color-text-danger, #e03e1a);
+	border-color: currentColor;
+	background: transparent;
+}
+
+/* Откат к сообщению */
+.msg.user {
+	position: relative;
+}
+.msg-rollback {
+	position: absolute;
+	right: calc(100% + 5px);
+	top: 50%;
+	transform: translateY(-50%);
+	display: grid;
+	place-items: center;
+	width: 20px;
+	height: 20px;
+	padding: 0;
+	border: 1px solid var(--figma-color-border, rgba(128, 128, 128, 0.35));
+	border-radius: 50%;
+	background: var(--figma-color-bg, #fff);
+	color: var(--figma-color-text-secondary, #7b7b7b);
+	cursor: pointer;
+	opacity: 0;
+	transition: opacity 0.12s;
+}
+.msg.user:hover .msg-rollback,
+.msg-rollback:focus-visible {
+	opacity: 1;
+}
+.msg-rollback:hover {
+	color: var(--figma-color-text, #333);
+}
+.rb-menu {
+	position: fixed;
+	z-index: 50;
+	min-width: 220px;
+	max-width: 300px;
+	padding: 4px;
+	border-radius: 8px;
+	background: var(--figma-color-bg, #fff);
+	border: 1px solid var(--figma-color-border, rgba(128, 128, 128, 0.35));
+	box-shadow: 0 6px 24px rgba(0, 0, 0, 0.22);
+}
+.rb-head {
+	padding: 6px 10px 6px;
+	font-size: 10px;
+	font-weight: 600;
+	color: var(--figma-color-text-tertiary, #999);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+.rb-item {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	width: 100%;
+	padding: 6px 8px;
+	text-align: left;
+	font: inherit;
+	color: var(--figma-color-text, #333);
+	background: none;
+	border: none;
+	border-radius: 5px;
+	cursor: pointer;
+}
+.rb-item:hover:not(:disabled) {
+	background: var(--figma-color-bg-hover, rgba(128, 128, 128, 0.15));
+}
+.rb-item:disabled {
+	opacity: 0.45;
+	cursor: default;
+}
+.rb-title {
+	font-size: 12px;
+	font-weight: 600;
+}
+.rb-hint {
+	font-size: 10px;
+	color: var(--figma-color-text-secondary, #7b7b7b);
+}
+.rb-hint:empty {
+	display: none;
+}
+
+/* Панель версий/чатов: выпадашка под кнопками верхнего правого угла */
+.versions {
+	position: fixed;
+	top: 40px;
+	right: 8px;
+	z-index: 50;
+	width: 300px;
+	max-width: calc(100vw - 16px);
+	max-height: 50%;
+	overflow-y: auto;
+	padding: 6px;
+	border-radius: 8px;
+	background: var(--figma-color-bg, #fff);
+	border: 1px solid var(--figma-color-border, rgba(128, 128, 128, 0.35));
+	box-shadow: 0 6px 24px rgba(0, 0, 0, 0.22);
+}
+.ver-empty {
+	padding: 10px;
+	font-size: 11px;
+	color: var(--figma-color-text-secondary, #7b7b7b);
+}
+.ver-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 7px 6px 7px 10px;
+	border-radius: 5px;
+}
+/* Воздух между плашками списка (чаты, версии) — подложки не слипаются. */
+.ver-row + .ver-row {
+	margin-top: 3px;
+}
+.ver-row:hover {
+	background: var(--figma-color-bg-hover, rgba(128, 128, 128, 0.15));
+}
+.ver-row.current {
+	background: var(--figma-color-bg-selected, rgba(151, 71, 255, 0.1));
+}
+.chat-mark {
+	flex: none;
+	font-size: 7px;
+	color: var(--figma-color-text-selected, #9747ff);
+}
+/* Пульсирующая точка — в этой беседе сейчас работает агент. */
+.chat-run {
+	color: var(--figma-color-bg-success, #14ae5c);
+	animation: chat-run-pulse 1.2s ease-in-out infinite;
+}
+@keyframes chat-run-pulse {
+	0%,
+	100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.25;
+	}
+}
+.chat-rename {
+	width: 100%;
+	padding: 4px 6px;
+	margin: 2px 0;
+	font: inherit;
+	font-size: 12px;
+	color: var(--figma-color-text, #333);
+	background: var(--figma-color-bg, #fff);
+	border: 1px solid var(--figma-color-border-selected, #9747ff);
+	border-radius: 4px;
+	outline: none;
+}
+.ver-info {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+}
+.ver-time {
+	font-size: 10px;
+	color: var(--figma-color-text-tertiary, #999);
+}
+.ver-prompt {
+	font-size: 12px;
+	color: var(--figma-color-text, #333);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.ver-act {
+	flex: none;
+	width: 22px;
+	height: 22px;
+	padding: 0;
+	border: none;
+	border-radius: 5px;
+	background: none;
+	font: inherit;
+	font-size: 13px;
+	line-height: 1;
+	color: var(--figma-color-text-secondary, #7b7b7b);
+	cursor: pointer;
+}
+.ver-act:disabled {
+	opacity: 0.3;
+}
+.ver-act:hover {
+	background: var(--figma-color-bg-secondary, rgba(128, 128, 128, 0.15));
+	color: var(--figma-color-text, #333);
+}
+.ver-foot {
+	padding: 6px 4px 2px;
+	border-top: 1px solid var(--figma-color-border, rgba(128, 128, 128, 0.2));
+	margin-top: 4px;
+}
+.ver-clear {
+	width: 100%;
+	padding: 7px 10px;
+	border: none;
+	border-radius: 5px;
+	background: none;
+	font: inherit;
+	font-size: 11px;
+	text-align: left;
+	color: var(--figma-color-text-secondary, #7b7b7b);
+	cursor: pointer;
+}
+.ver-clear:hover {
+	background: var(--figma-color-bg-hover, rgba(128, 128, 128, 0.15));
+	color: var(--figma-color-text-danger, #e33);
+}
+
+/* Вложения-изображения */
+.attachments {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+.att-chip {
+	position: relative;
+	width: 44px;
+	height: 44px;
+	border-radius: 8px;
+	overflow: hidden;
+	border: 1px solid var(--figma-color-border, rgba(128, 128, 128, 0.35));
+}
+.att-chip img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	display: block;
+}
+.att-remove {
+	position: absolute;
+	top: 1px;
+	right: 1px;
+	width: 15px;
+	height: 15px;
+	padding: 0;
+	display: grid;
+	place-items: center;
+	font-size: 12px;
+	line-height: 1;
+	color: #fff;
+	background: rgba(0, 0, 0, 0.6);
+	border: none;
+	border-radius: 50%;
+	cursor: pointer;
+}
+.composer.dragging {
+	border-color: var(--figma-color-border-selected, #9747ff);
+	background: var(--figma-color-bg-brand-tertiary, rgba(151, 71, 255, 0.1));
+}
+.msg-images {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	margin-top: 5px;
+}
+.msg-images img {
+	width: 52px;
+	height: 52px;
+	object-fit: cover;
+	border-radius: 6px;
+	border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+/* Документы-вложения */
+.att-chip.att-file {
+	width: auto;
+	max-width: 150px;
+	height: 28px;
+	display: inline-flex;
+	align-items: center;
+	padding: 0 22px 0 8px;
+	background: var(--figma-color-bg, #fff);
+}
+.att-name {
+	font-size: 10px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.att-chip.att-file .att-remove {
+	top: 6px;
+	right: 4px;
+}
+.msg-files {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	margin-top: 5px;
+}
+.msg-file {
+	max-width: 100%;
+	padding: 1px 7px;
+	font-size: 10px;
+	border-radius: 999px;
+	background: rgba(255, 255, 255, 0.22);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Настройки */
+body {
+	position: relative;
+}
+.settings {
+	position: absolute;
+	inset: 0;
+	z-index: 40;
+	display: flex;
+	flex-direction: column;
+	background: var(--figma-color-bg, #fff);
+}
+.settings[hidden] {
+	display: none;
+}
+.st-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 8px 8px 8px 12px;
+	border-bottom: 1px solid var(--figma-color-border, rgba(128, 128, 128, 0.3));
+}
+/* Кнопка закрытия: квадрат со скруглением справа, как у кнопки настроек */
+.st-close {
+	display: grid;
+	place-items: center;
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	border: 1px solid var(--figma-color-border, #d9d9d9);
+	border-radius: 8px;
+	background: var(--figma-color-bg, #fff);
+	color: var(--figma-color-text-secondary, #7b7b7b);
+	cursor: pointer;
+}
+.st-close:hover {
+	color: var(--figma-color-text, #1e1e1e);
+	background: var(--figma-color-bg-secondary, #f5f5f5);
+}
+.st-head-title {
+	font-weight: 600;
+}
+.st-body {
+	flex: 1;
+	overflow-y: auto;
+	padding: 6px 12px 16px;
+}
+.st-section {
+	margin-top: 12px;
+}
+.st-title {
+	margin: 0 0 8px;
+	font-size: 12px;
+	font-weight: 600;
+}
+.st-hint {
+	margin: 0 0 7px;
+	font-size: 10px;
+	line-height: 1.4;
+	color: var(--figma-color-text-secondary, #7b7b7b);
+}
+.st-input {
+	width: 100%;
+	box-sizing: border-box;
+	padding: 5px 7px;
+	font: inherit;
+	color: inherit;
+	background: var(--figma-color-bg-secondary, #f5f5f5);
+	border: 1px solid var(--figma-color-border, rgba(128, 128, 128, 0.3));
+	border-radius: 6px;
+}
+.st-input:focus {
+	outline: none;
+	border-color: var(--figma-color-border-selected, #9747ff);
+}
+.st-rules {
+	resize: vertical;
+	min-height: 90px;
+}
+.st-counter {
+	margin-top: 2px;
+	text-align: right;
+	font-size: 9px;
+	color: var(--figma-color-text-tertiary, #999);
+}
+.st-list {
+	display: flex;
+	flex-direction: column;
+	gap: 5px;
+}
+.st-row {
+	display: grid;
+	/* Колонки фиксированы, чтобы поля названий были одной ширины у всех строк */
+	grid-template-columns: minmax(0, 1fr) 104px 20px;
+	align-items: center;
+	gap: 6px;
+}
+/* Строка «галочка + подпись»: подпись занимает всю ширину и переносится */
+.st-row.st-check {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	cursor: pointer;
+	padding: 5px 0;
+}
+.st-row.st-check + .st-input {
+	margin-top: 6px;
+}
+.st-row.st-check input {
+	margin: 2px 0 0;
+	flex: none;
+}
+.st-row.st-check .st-model-name {
+	white-space: normal;
+	overflow: visible;
+	line-height: 1.35;
+}
+.st-id {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+	font-size: 9px;
+	color: var(--figma-color-text-tertiary, #999);
+}
+.st-del {
+	width: 20px;
+	height: 20px;
+	padding: 0;
+	border: none;
+	border-radius: 50%;
+	background: none;
+	color: var(--figma-color-text-secondary, #7b7b7b);
+	font-size: 14px;
+	cursor: pointer;
+}
+.st-del:hover {
+	color: var(--figma-color-text-danger, #e03e1a);
+}
+.st-form {
+	display: flex;
+	flex-direction: column;
+	gap: 5px;
+	margin-top: 10px;
+	padding-top: 10px;
+	border-top: 1px solid var(--figma-color-border, rgba(128, 128, 128, 0.3));
+}
+.st-add {
+	align-self: flex-end;
+	padding: 5px 11px;
+	font: inherit;
+	font-weight: 600;
+	color: var(--figma-color-text-onbrand, #fff);
+	background: var(--figma-color-bg-brand, #9747ff);
+	border: none;
+	border-radius: 6px;
+	cursor: pointer;
+}
+.st-error {
+	min-height: 12px;
+	font-size: 10px;
+	color: var(--figma-color-text-danger, #e03e1a);
+}
+
+/* Иконка файла в чипах и баблах */
+.file-icon {
+	flex: none;
+	display: inline-grid;
+	place-items: center;
+	color: var(--figma-color-text-secondary, #7b7b7b);
+}
+.file-icon--pdf {
+	color: #e5484d;
+}
+.file-icon--doc {
+	color: #3e8bff;
+}
+.file-icon--svg {
+	color: #a259ff;
+}
+.file-icon--data {
+	color: #2fa66a;
+}
+.att-chip.att-file {
+	gap: 6px;
+	padding-left: 7px;
+}
+.msg-file {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 2px 8px 2px 6px;
+}
+.msg-file .file-icon {
+	color: inherit;
+	opacity: 0.9;
+}
+.msg-file-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Файлы-вложения — квадратные плитки, как у изображений */
+.att-chip.att-file {
+	width: 44px;
+	height: 44px;
+	max-width: none;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 2px;
+	background: var(--figma-color-bg, #fff);
+}
+.att-chip.att-file .file-icon svg {
+	width: 17px;
+	height: 20px;
+}
+.att-ext {
+	font-size: 8px;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	color: var(--figma-color-text-secondary, #7b7b7b);
+}
+.att-chip.att-file .att-remove {
+	top: 1px;
+	right: 1px;
+}
+.msg-file {
+	width: 52px;
+	height: 52px;
+	max-width: none;
+	padding: 0;
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 3px;
+	border-radius: 6px;
+	border: 1px solid rgba(255, 255, 255, 0.35);
+	background: rgba(255, 255, 255, 0.18);
+}
+.msg-file .file-icon svg {
+	width: 18px;
+	height: 21px;
+}
+.msg-file-ext {
+	font-size: 8px;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+}
+
+/* Кастомный select в настройках */
+.cs {
+	position: relative;
+}
+.cs-btn {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px;
+	text-align: left;
+	cursor: pointer;
+}
+.cs-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.cs-btn svg {
+	flex: none;
+	transition: transform 0.15s;
+}
+.cs.open .cs-btn {
+	border-color: var(--figma-color-border-selected, #9747ff);
+}
+.cs.open .cs-btn svg {
+	transform: rotate(180deg);
+}
+.cs .cs-list {
+	top: calc(100% + 4px);
+	bottom: auto;
+	left: 0;
+	right: 0;
+	min-width: 0;
+}
+
+/* Выбор из доступных моделей */
+.cs .cs-list {
+	max-height: 220px;
+}
+.cs-model {
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 1px;
+}
+.cs-model:disabled {
+	opacity: 0.45;
+	cursor: default;
+}
+.cs-model-name {
+	font-size: 11.5px;
+}
+.cs-model-id {
+	font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+	font-size: 9px;
+	color: var(--figma-color-text-tertiary, #999);
+}
+.cs-refresh {
+	margin-top: 2px;
+	border-top: 1px solid var(--figma-color-border, rgba(128, 128, 128, 0.3));
+	border-radius: 0 0 6px 6px;
+	color: var(--figma-color-text-secondary, #7b7b7b);
+	font-size: 10.5px;
+}
+.st-note {
+	padding: 8px;
+	font-size: 10.5px;
+	color: var(--figma-color-text-secondary, #7b7b7b);
+}
+.st-note-error {
+	color: var(--figma-color-text-danger, #e03e1a);
+}
+
+/* Список доступных моделей: ниже по высоте, дальше — прокрутка */
+.cs .cs-list {
+	max-height: 180px;
+}
+
+/* Если снизу нет места — список открывается вверх */
+.cs.up .cs-list {
+	top: auto;
+	bottom: calc(100% + 4px);
+}
+
+/* Шестерёнка настроек: по центру круга, при наведении нейтральная (красный — только у очистки) */
+#settings-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+}
+#settings-btn svg {
+	display: block;
+	flex: none;
+}
+#settings-btn:hover {
+	color: var(--figma-color-text, #1e1e1e);
+	border-color: var(--figma-color-border-selected, #9747ff);
+	background: var(--figma-color-bg-secondary, #f5f5f5);
+}
+
+/* Пустая строка статуса не занимает места: отступ панели снизу такой же, как слева и справа */
+#status:empty {
+	display: none;
+}
+
+/* Статус подключения — плашка поверх чата сверху, не сдвигает вёрстку */
+#status {
+	position: absolute;
+	top: 10px;
+	left: 10px;
+	right: 10px;
+	z-index: 30;
+	min-height: 0;
+	padding: 6px 10px;
+	border-radius: 8px;
+	text-align: center;
+	font-size: 11px;
+	pointer-events: none;
+	color: var(--figma-color-text-secondary, #7b7b7b);
+	background: var(--figma-color-bg-secondary, #f5f5f5);
+	border: 1px solid var(--figma-color-border, rgba(128, 128, 128, 0.3));
+	box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+}
+#status.error {
+	color: var(--figma-color-text-danger, #e03e1a);
+	border-color: var(--figma-color-text-danger, #e03e1a);
+}
+
+/* Круглый индикатор в плашке статуса: янтарный пульсирует при подключении, красный — ошибка */
+#status {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 7px;
+	border-radius: 999px;
+}
+#status::before {
+	content: "";
+	flex: none;
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: #f5a524;
+	animation: status-pulse 1.2s ease-in-out infinite;
+}
+#status.error::before {
+	background: var(--figma-color-text-danger, #e03e1a);
+	animation: none;
+}
+@keyframes status-pulse {
+	0%,
+	100% {
+		opacity: 1;
+		transform: scale(1);
+	}
+	50% {
+		opacity: 0.35;
+		transform: scale(0.7);
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	#status::before {
+		animation: none;
+	}
+}
+
+/* Настройки: без лишнего пространства под формой */
+.st-error:empty {
+	display: none;
+}
+.st-body {
+	padding-bottom: 12px;
+}
+
+/* Поиск в длинном списке моделей: закреплён сверху при прокрутке */
+.cs-search {
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	margin-bottom: 4px;
+	background: var(--figma-color-bg, #fff);
+}
+
+/* Опции модели у поля ввода: уровень размышления и Fast */
+.level-list {
+	min-width: 150px;
+}
+#level-dd .pill {
+	max-width: 190px;
+}
+.pill-toggle {
+	cursor: pointer;
+	color: var(--figma-color-text-secondary, #7b7b7b);
+}
+.pill-toggle.on {
+	color: #fff;
+	background: #f5a524;
+	border-color: #f5a524;
+}
+.pill-toggle.unavailable {
+	opacity: 0.45;
+	cursor: default;
+}
+
+/* Список моделей в настройках: переключатель, название, подпись */
+.st-toolbar {
+	display: grid;
+	grid-template-columns: 1fr auto;
+	gap: 6px;
+	margin-bottom: 6px;
+}
+.st-refresh {
+	width: 28px;
+	border: 1px solid var(--figma-color-border, rgba(128, 128, 128, 0.3));
+	border-radius: 6px;
+	background: none;
+	color: var(--figma-color-text-secondary, #7b7b7b);
+	cursor: pointer;
+}
+.st-refresh-icon {
+	display: inline-block;
+}
+.st-refresh.spin .st-refresh-icon {
+	animation: dd-spin 0.9s linear infinite;
+}
+.st-refresh:hover {
+	color: var(--figma-color-text, #1e1e1e);
+}
+.st-group {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin-top: 10px;
+	padding-bottom: 3px;
+	border-bottom: 1px solid var(--figma-color-border, rgba(128, 128, 128, 0.3));
+}
+.st-group-name {
+	font-size: 10px;
+	font-weight: 700;
+	letter-spacing: 0.07em;
+	text-transform: uppercase;
+	color: var(--figma-color-text-secondary, #7b7b7b);
+}
+.st-group-count {
+	font-size: 10px;
+	color: var(--figma-color-text-tertiary, #999);
+}
+.st-bulk {
+	margin-left: auto;
+	display: inline-flex;
+	align-self: center;
+	overflow: hidden;
+	border: 1px solid var(--figma-color-border, rgba(128, 128, 128, 0.35));
+	border-radius: 999px;
+}
+.st-link {
+	border: none;
+	background: none;
+	padding: 2px 10px;
+	font: inherit;
+	font-size: 10.5px;
+	color: var(--figma-color-text-secondary, #7b7b7b);
+	cursor: pointer;
+	transition:
+		background 0.12s,
+		color 0.12s;
+}
+.st-link + .st-link {
+	border-left: 1px solid var(--figma-color-border, rgba(128, 128, 128, 0.35));
+}
+.st-link:hover {
+	background: var(--figma-color-bg-secondary, rgba(128, 128, 128, 0.15));
+	color: var(--figma-color-text, #1e1e1e);
+}
+.st-model-row {
+	grid-template-columns: minmax(0, 1fr) auto;
+	margin-top: 5px;
+}
+.st-model-row.off .st-model-name,
+.st-model-row.off .st-id {
+	opacity: 0.45;
+}
+.st-switch {
+	position: relative;
+	display: inline-block;
+	width: 26px;
+	height: 15px;
+	flex: none;
+	cursor: pointer;
+}
+.st-switch input {
+	position: absolute;
+	inset: 0;
+	opacity: 0;
+	cursor: pointer;
+	margin: 0;
+}
+.st-switch-track {
+	position: absolute;
+	inset: 0;
+	border-radius: 999px;
+	background: var(--figma-color-border, rgba(128, 128, 128, 0.45));
+	transition: background 0.12s;
+	pointer-events: none;
+}
+.st-switch-track::after {
+	content: "";
+	position: absolute;
+	top: 2px;
+	left: 2px;
+	width: 11px;
+	height: 11px;
+	border-radius: 50%;
+	background: #fff;
+	transition: transform 0.12s;
+}
+.st-switch input:checked + .st-switch-track {
+	background: var(--figma-color-bg-brand, #9747ff);
+}
+.st-switch input:checked + .st-switch-track::after {
+	transform: translateX(11px);
+}
+
+.st-model-name {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Карточка модели справа от выпадающего списка */
+.model-info {
+	position: fixed;
+	z-index: 20;
+	box-sizing: border-box;
+	padding: 10px 12px 12px;
+	background: var(--figma-color-bg, #fff);
+	border: 1px solid var(--figma-color-border, #d9d9d9);
+	border-radius: 12px;
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+	font-size: 11px;
+	min-width: 180px;
+}
+.mi-head {
+	display: flex;
+	align-items: baseline;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+.mi-title {
+	font-size: 13px;
+	font-weight: 700;
+}
+.mi-sub,
+.mi-muted {
+	color: var(--figma-color-text-tertiary, #999);
+}
+.mi-sub {
+	font-size: 12px;
+}
+.mi-head + .mi-muted {
+	margin-top: 4px;
+}
+.mi-line {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	margin-top: 4px;
+}
+.mi-label,
+.mi-value {
+	white-space: nowrap;
+}
+.mi-value {
+	color: var(--figma-color-text-secondary, #666);
+}
+.mi-switch {
+	border: none;
+	padding: 0;
+	cursor: pointer;
+	position: relative;
+	width: 28px;
+	height: 16px;
+	border-radius: 999px;
+	background: var(--figma-color-bg-tertiary, #d9d9d9);
+}
+.mi-switch::after {
+	content: "";
+	position: absolute;
+	top: 2px;
+	left: 2px;
+	width: 12px;
+	height: 12px;
+	border-radius: 50%;
+	background: #fff;
+	transition: left 0.12s;
+}
+.mi-switch.unavailable {
+	opacity: 0.4;
+	cursor: not-allowed;
+}
+.mi-switch.on {
+	background: var(--figma-color-bg-brand, #9747ff);
+}
+.mi-switch.on::after {
+	left: 14px;
+}
+.mi-sep {
+	border: none;
+	border-top: 1px solid var(--figma-color-border, #e5e5e5);
+	margin: 12px 0 0;
+}
+.mi-prices {
+	display: grid;
+	grid-template-columns: repeat(3, auto);
+	justify-content: space-between;
+	gap: 8px;
+	margin-top: 10px;
+}
+.mi-price {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+.mi-price-name {
+	font-size: 10px;
+	color: var(--figma-color-text-secondary, #666);
+}
+.mi-price-val {
+	font-size: 12px;
+	font-weight: 700;
+}
+.mi-price-val .mi-muted {
+	font-size: 10.5px;
+	font-weight: 400;
+}
+
+/* Метка уровня/Fast на кнопке модели */
+.pill-tag {
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+	font-weight: 400;
+	color: var(--figma-color-text-tertiary, #999);
+}
+.pill-tag:empty {
+	display: none;
+}
+/* Селект уровня размышления в карточке */
+.mi-select {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	border: 1px solid var(--figma-color-border, #d9d9d9);
+	background: none;
+	color: inherit;
+	font: inherit;
+	font-size: 11px;
+	padding: 2px 7px;
+	border-radius: 999px;
+	cursor: pointer;
+}
+.mi-select:hover,
+.mi-select.open {
+	background: var(--figma-color-bg-secondary, #f0f0f0);
+}
+.mi-select svg {
+	transition: transform 0.15s;
+}
+.mi-select.open svg {
+	transform: rotate(180deg);
+}
+.mi-select-wrap {
+	position: relative;
+}
+.mi-options {
+	position: absolute;
+	top: calc(100% + 4px);
+	right: 0;
+	z-index: 5;
+	display: flex;
+	flex-direction: column;
+	min-width: 96px;
+	padding: 3px;
+	background: var(--figma-color-bg, #fff);
+	border: 1px solid var(--figma-color-border, #d9d9d9);
+	border-radius: 8px;
+	box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
+}
+.mi-options.up {
+	top: auto;
+	bottom: calc(100% + 4px);
+}
+.mi-opt {
+	display: flex;
+	gap: 10px;
+	align-items: center;
+	justify-content: space-between;
+	border: none;
+	background: none;
+	color: inherit;
+	font: inherit;
+	font-size: 11px;
+	padding: 3px 6px;
+	border-radius: 6px;
+	cursor: pointer;
+}
+.mi-opt:hover {
+	background: var(--figma-color-bg-secondary, #f0f0f0);
+}
+.mi-opt .tick {
+	visibility: hidden;
+}
+.mi-opt.on {
+	color: var(--figma-color-text-brand, #9747ff);
+	font-weight: 600;
+}
+.mi-opt.on .tick {
+	visibility: visible;
+}
+.mi-note {
+	margin-top: 8px;
+	font-size: 10px;
+	color: var(--figma-color-text-tertiary, #999);
+}
+/* Расстояние между группами провайдеров в списке моделей */
+.dd-group:not(:first-child) {
+	margin-top: 8px;
+}
+/* Поиск вверху списка моделей */
+.dd-search {
+	flex: 0 0 auto;
+	margin: -3px -3px 3px;
+	padding: 5px 5px 4px;
+	background: var(--figma-color-bg, #fff);
+	border-bottom: 1px solid var(--figma-color-border, #e5e5e5);
+}
+.dd-search input {
+	width: 100%;
+	box-sizing: border-box;
+	border: 1px solid var(--figma-color-border, #d9d9d9);
+	border-radius: 6px;
+	background: var(--figma-color-bg-secondary, #f5f5f5);
+	color: inherit;
+	font: inherit;
+	font-size: 11px;
+	padding: 4px 24px 4px 24px;
+}
+.dd-search input:focus {
+	outline: none;
+	border-color: var(--figma-color-border-selected, #9747ff);
+}
+.dd-item[hidden],
+.dd-group[hidden] {
+	display: none;
+}
+.dd-search-box {
+	position: relative;
+}
+.dd-search-icon {
+	position: absolute;
+	left: 8px;
+	top: 50%;
+	transform: translateY(-50%);
+	color: var(--figma-color-text-tertiary, #999);
+	pointer-events: none;
+}
+.dd-search-clear {
+	position: absolute;
+	right: 4px;
+	top: 50%;
+	transform: translateY(-50%);
+	display: grid;
+	place-items: center;
+	width: 16px;
+	height: 16px;
+	padding: 0;
+	border: none;
+	border-radius: 50%;
+	background: none;
+	color: var(--figma-color-text-tertiary, #999);
+	cursor: pointer;
+}
+.dd-search-clear:hover {
+	background: var(--figma-color-bg-tertiary, #e5e5e5);
+	color: var(--figma-color-text, #1e1e1e);
+}
+.dd-search-clear[hidden] {
+	display: none;
+}
+.dd-list[hidden] {
+	display: none;
+}
+.dd-scroll {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow-y: auto;
+}
+
+/* Верхний правый угол: чаты, версии, настройки — квадратные кнопки */
+.corner {
+	position: absolute;
+	top: 8px;
+	right: 8px;
+	z-index: 31;
+	display: flex;
+	gap: 6px;
+}
+.corner-btn {
+	display: grid;
+	place-items: center;
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	border: 1px solid var(--figma-color-border, #d9d9d9);
+	border-radius: 8px;
+	background: var(--figma-color-bg, #fff);
+	color: var(--figma-color-text-secondary, #7b7b7b);
+	cursor: pointer;
+}
+.corner-btn:hover {
+	color: var(--figma-color-text, #1e1e1e);
+	background: var(--figma-color-bg-secondary, #f5f5f5);
+}
+#messages {
+	padding-top: 30px;
+}
+#status {
+	right: 46px;
+}
+
+/* Настройки наезжают справа и уезжают обратно */
+.settings.in {
+	animation: settings-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.settings.out {
+	animation: settings-out 0.18s ease-in forwards;
+}
+@keyframes settings-in {
+	from {
+		transform: translateX(100%);
+		opacity: 0.6;
+	}
+	to {
+		transform: translateX(0);
+		opacity: 1;
+	}
+}
+@keyframes settings-out {
+	from {
+		transform: translateX(0);
+		opacity: 1;
+	}
+	to {
+		transform: translateX(100%);
+		opacity: 0.6;
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.settings.in,
+	.settings.out {
+		animation-duration: 0.01s;
+	}
+}
+/* Выезжающие настройки не должны давать горизонтальную прокрутку */
+html,
+body {
+	overflow-x: hidden;
+}
+/* Первая модель группы ближе к разделительной линии */
+.st-group + .st-model-row {
+	margin-top: 1px;
+}
+/* Первый раздел настроек ближе к шапке */
+.st-body > .st-section:first-child {
+	margin-top: 0;
+}
+/* Поиск и кнопка перезагрузки в одной строке */
+.dd-search {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+.dd-search .dd-search-box {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+.dd-refresh {
+	display: grid;
+	place-items: center;
+	flex: 0 0 auto;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	border: 1px solid var(--figma-color-border, #d9d9d9);
+	border-radius: 6px;
+	background: none;
+	color: var(--figma-color-text-secondary, #7b7b7b);
+	cursor: pointer;
+}
+.dd-refresh:hover {
+	color: var(--figma-color-text, #1e1e1e);
+	background: var(--figma-color-bg-secondary, #f5f5f5);
+}
+.dd-refresh.spin svg {
+	animation: dd-spin 0.9s linear infinite;
+}
+@keyframes dd-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+/* Первая строка опций чуть дальше от заголовка */
+.mi-head + .mi-line,
+.mi-muted + .mi-line {
+	margin-top: 8px;
+}
+
+/* Индикатор контекста: кольцо рядом с выбором модели, подсказка сверху */
+.ctx-ring-wrap {
+	position: relative;
+	display: inline-flex;
+}
+.ctx-ring {
+	display: grid;
+	place-items: center;
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	border: none;
+	border-radius: 999px;
+	background: transparent;
+	cursor: pointer;
+}
+.ctx-ring svg {
+	width: 21px;
+	height: 21px;
+}
+.ctx-ring:hover:not(:disabled) {
+	background: var(--figma-color-bg-secondary, #f5f5f5);
+}
+.ctx-ring:disabled {
+	cursor: default;
+}
+.ctx-ring circle {
+	fill: none;
+	stroke-width: 2;
+}
+.ctx-ring .track {
+	stroke: var(--figma-color-text-tertiary, #a8a8a8);
+	opacity: 0.4;
+}
+.ctx-ring .bar {
+	stroke: var(--figma-color-text-secondary, #7b7b7b);
+	stroke-linecap: round;
+	transition: stroke-dashoffset 0.3s ease;
+}
+.ctx-ring-wrap.warn .bar {
+	stroke: var(--figma-color-text-warning, #b86200);
+}
+.ctx-ring-wrap.full .bar {
+	stroke: var(--figma-color-text-danger, #e03e1a);
+}
+.ctx-ring-wrap.busy svg {
+	animation: ctx-spin 1s linear infinite;
+}
+@keyframes ctx-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+.ctx-tip {
+	position: absolute;
+	bottom: calc(100% + 6px);
+	left: 50%;
+	transform: translateX(-50%);
+	z-index: 40;
+	white-space: nowrap;
+	padding: 6px 9px;
+	border-radius: 7px;
+	background: #1e1e1e;
+	color: #fff;
+	border: 1px solid rgba(255, 255, 255, 0.1);
+	font-size: 11px;
+	line-height: 1.35;
+	box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+	opacity: 0;
+	visibility: hidden;
+	pointer-events: none;
+	transition: opacity 0.12s;
+}
+.ctx-ring-wrap:hover .ctx-tip {
+	opacity: 1;
+	visibility: visible;
+}
+.ctx-tip-hint {
+	opacity: 0.65;
+	font-size: 10px;
+}
+
+/* Очередь запросов над полем ввода */
+/* Пока агент работает: «Дополнить» — контурная кнопка, чтобы не путать с отправкой */
+.send-btn.queueing {
+	background: transparent;
+	color: var(--figma-color-text-brand, #9747ff);
+	box-shadow: inset 0 0 0 1.5px currentColor;
+}
+
+/* Бриф: карточка уточняющих вопросов агента */
+.brief {
+	margin: 8px 0;
+	padding: 10px 12px;
+	border-radius: 10px;
+	border: 1px solid var(--figma-color-border, rgba(128, 128, 128, 0.3));
+	background: var(--figma-color-bg-secondary, rgba(128, 128, 128, 0.08));
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+.brief-head {
+	font-size: 12px;
+	font-weight: 600;
+}
+.brief-q {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+.brief-title {
+	font-size: 12px;
+}
+.brief-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+.brief-chip {
+	font: inherit;
+	font-size: 11px;
+	padding: 4px 10px;
+	border-radius: 999px;
+	cursor: pointer;
+	color: inherit;
+	background: transparent;
+	border: 1px solid var(--figma-color-border, rgba(128, 128, 128, 0.4));
+}
+.brief-chip:hover {
+	background: var(--figma-color-bg-hover, rgba(128, 128, 128, 0.15));
+}
+.brief-chip.on {
+	background: var(--figma-color-bg-brand, #0d99ff);
+	border-color: var(--figma-color-bg-brand, #0d99ff);
+	color: var(--figma-color-text-onbrand, #fff);
+}
+.brief-own {
+	font: inherit;
+	font-size: 11px;
+	padding: 4px 8px;
+	border-radius: 6px;
+	color: inherit;
+	background: transparent;
+	border: 1px solid var(--figma-color-border, rgba(128, 128, 128, 0.3));
+}
+.brief-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+}
+.brief-skip,
+.brief-ok {
+	font: inherit;
+	font-size: 11px;
+	padding: 5px 12px;
+	border-radius: 6px;
+	cursor: pointer;
+}
+.brief-skip {
+	background: transparent;
+	color: inherit;
+	border: 1px solid var(--figma-color-border, rgba(128, 128, 128, 0.4));
+}
+.brief-ok {
+	background: var(--figma-color-bg-brand, #0d99ff);
+	color: var(--figma-color-text-onbrand, #fff);
+	border: none;
+}
+
+/* Быстрые действия под «Итогом» */
+.quick {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin: 6px 0 8px;
+}
+.quick-chip {
+	font: inherit;
+	font-size: 11px;
+	padding: 4px 10px;
+	border-radius: 999px;
+	cursor: pointer;
+	color: inherit;
+	background: transparent;
+	border: 1px solid var(--figma-color-border, rgba(128, 128, 128, 0.4));
+}
+.quick-chip:hover {
+	background: var(--figma-color-bg-hover, rgba(128, 128, 128, 0.15));
+}
+
+.check-head {
+	margin-top: 10px;
+}
+
+/* Пометки на скриншоте */
+.tool-btn[hidden] {
+	display: none;
+}
+.tool-btn:hover:not(:disabled) {
+	color: var(--figma-color-text, #1e1e1e);
+	border-color: var(--figma-color-text-secondary, #7b7b7b);
+}
+.tool-btn:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+.annotate {
+	position: fixed;
+	inset: 0;
+	z-index: 50;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 12px;
+	overflow: auto;
+	background: var(--figma-color-bg, #fff);
+	color: var(--figma-color-text, #333);
+}
+.annotate-hint {
+	font-size: 12px;
+	font-weight: 600;
+}
+.annotate-stage canvas {
+	display: block;
+	max-width: 100%;
+	border-radius: 6px;
+	cursor: crosshair;
+	touch-action: none;
+	border: 1px solid var(--figma-color-border, rgba(128, 128, 128, 0.3));
+}
+.annotate-list {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+.annotate-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-size: 11px;
+}
+.annotate-row input {
+	flex: 1;
+	font: inherit;
+	font-size: 11px;
+	padding: 4px 8px;
+	border-radius: 6px;
+	color: inherit;
+	background: transparent;
+	border: 1px solid var(--figma-color-border, rgba(128, 128, 128, 0.3));
+}
+.annotate-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: auto;
+}
+.annotate-actions button {
+	font: inherit;
+	font-size: 11px;
+	padding: 5px 12px;
+	border-radius: 6px;
+	cursor: pointer;
+	background: transparent;
+	color: inherit;
+	border: 1px solid var(--figma-color-border, rgba(128, 128, 128, 0.4));
+}
+.annotate-actions .brief-ok {
+	background: var(--figma-color-bg-brand, #0d99ff);
+	color: var(--figma-color-text-onbrand, #fff);
+	border: none;
+}
+
+.annotate-actions button.on {
+	background: var(--figma-color-bg-selected, rgba(13, 153, 255, 0.15));
+	border-color: var(--figma-color-border-brand, #0d99ff);
+}
+.swatches {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+.swatch {
+	width: 22px;
+	height: 22px;
+	border-radius: 6px;
+	border: 1px solid var(--figma-color-border, rgba(128, 128, 128, 0.35));
+}
+code.node-link {
+	cursor: pointer;
+	text-decoration: underline dotted;
+	color: var(--figma-color-text-brand, #0d99ff);
+}
+
+/* Кастомный select настроек */
+.cs {
+	position: relative;
+}
+.cs-button {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	text-align: left;
+	cursor: pointer;
+}
+.cs-text {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.cs-chevron {
+	flex: none;
+	opacity: 0.6;
+	transition: transform 0.12s;
+}
+.cs-button.open {
+	border-color: var(--figma-color-border-selected, #9747ff);
+}
+.cs-button.open .cs-chevron {
+	transform: rotate(180deg);
+}
+.cs-list {
+	position: fixed;
+	z-index: 60;
+	box-sizing: border-box;
+	overflow-y: auto;
+	background: var(--figma-color-bg, #fff);
+	border: 1px solid var(--figma-color-border, #d9d9d9);
+	border-radius: 10px;
+	box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+	padding: 3px;
+}
+
+/* Строка «подпись — переключатель» в настройках */
+.st-row.st-toggle {
+	margin-top: 0;
+	padding: 5px 0;
+	cursor: pointer;
+}
+.st-toggle-text {
+	min-width: 0;
+	line-height: 1.35;
+}
+.st-row.st-toggle + .st-row.st-toggle {
+	margin-top: 0;
+}
+.st-row.st-toggle + .cs {
+	margin-top: 6px;
+}
+
+/* Режим MCP: всё скрыто, остаётся маленький блок */
+body.mcp-mode > *:not(.mcp-mini):not(script) {
+	display: none !important;
+}
+body.mcp-mode {
+	overflow: hidden;
+}
+.mcp-mini {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	height: 100vh;
+	box-sizing: border-box;
+	padding: 0 8px 0 12px;
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--figma-color-text, #1e1e1e);
+}
+.mcp-mini[hidden] {
+	display: none;
+}
+.mcp-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	flex: none;
+	background: var(--figma-color-text-danger, #f24822);
+}
+.mcp-dot.on {
+	background: var(--figma-color-text-success, #14ae5c);
+}
+.mcp-dot.pulse {
+	animation: mcp-pulse 0.6s ease-out;
+}
+@keyframes mcp-pulse {
+	0% {
+		box-shadow: 0 0 0 0 rgba(20, 174, 92, 0.6);
+	}
+	100% {
+		box-shadow: 0 0 0 8px rgba(20, 174, 92, 0);
+	}
+}
+.mcp-label {
+	flex: 1;
+	min-width: 0;
+	white-space: nowrap;
+}
+.mcp-expand {
+	display: grid;
+	place-items: center;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	border: 1px solid var(--figma-color-border, #d9d9d9);
+	border-radius: 6px;
+	background: none;
+	color: var(--figma-color-text-secondary, #7b7b7b);
+	cursor: pointer;
+}
+.mcp-expand:hover {
+	color: var(--figma-color-text, #1e1e1e);
+	background: var(--figma-color-bg-secondary, #f5f5f5);
+}
+#mcp-btn.active {
+	color: var(--figma-color-text-brand, #9747ff);
+	border-color: currentColor;
+}

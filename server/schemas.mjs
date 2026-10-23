@@ -1,0 +1,50 @@
+// Полные схемы редких типов и операций. В системном промпте — только короткая
+// строка про каждый; модель просит подробности ответом {"schema":"<имя>"},
+// и текст схемы приходит следующим раундом (экономим промпт каждого запроса).
+export const SCHEMAS = {
+	logo: `{"type":"logo","text":"Nordwind","style":"monogram|wordmark|geometric|mark+word","color":"#...","size":40}
+A placeholder logo when the brand has no real one (a user SVG always wins). monogram: initials in a circle/rounded square; wordmark: spaced uppercase text; geometric: 2-3 shapes derived from the text; mark+word: geometric mark + wordmark. The same text always gives the same logo.`,
+
+	barcode: `{"type":"barcode","value":"4006381333931","format":"ean13|ean8|code128|code39|upca","w":180,"h":60}
+Real bars with the digits below. EAN-13 needs 12 or 13 digits; the check digit is computed/fixed automatically (the corrected value is used). Default format code128. Change the value later with {"op":"update","id":"<id>","barcode":{...}}.`,
+
+	qr: `{"type":"qr","value":"https://example.com","size":120,"color":"#111111","bg":"#FFFFFF"}
+A real scannable QR code (error correction M, quiet zone included), up to 500 characters of value. Keep high contrast between color and bg.`,
+
+	mockup: `{"type":"mockup","device":"iphone|android|ipad|macbook|browser|watch","content":"<id of an existing screen frame>","shadow":true}
+A device frame with the screen inside (screen sizes: iphone 390x844, android 360x800, ipad 820x1180, macbook 1440x900, browser 1280x800 with a toolbar, watch 198x242). "content" places a SNAPSHOT (clone scaled to the screen width) of that frame — it does NOT follow later edits of the original, so mention it in "summary". Without "content" put your own "children": they fill the screen frame of the device (build them at the screen size). Use for presentations, hero sections with the product, covers. Position with x/y, "shadow":false removes the shadow.`,
+
+	map: `{"type":"map","w":720,"h":320,"style":"light|dark|minimal","place":"Moscow, Tverskaya 1","pins":[{"label":"Office"}],"real":false,"zoom":15}
+A schematic map (streets, parks, water drawn deterministically from "place" — not real geography; captioned as schematic) with pins and label chips (up to 6 pins, positions are decorative). Give a numeric w. Use for contacts/locations instead of a stock photo. "real":true asks for real OpenStreetMap tiles of the geocoded "place" (zoom 10-18, one pin at the place, caption © OpenStreetMap contributors) — only works when the user enabled it on the server; otherwise a schematic map is built.`,
+
+	shapes: `Vector shapes, boolean operations, masks (see COMPLEX SHAPES for when to use them).
+{"type":"shape","shape":"blob","w":320,"h":280,"seed":"hero","fill":"#EEF2FF"} — organic blob (same seed, same blob; change seed for another).
+{"type":"shape","shape":"wave","w":1440,"h":120,"amplitude":24,"periods":2,"fill":"#F7F3EE"} — the area UNDER a sine curve: a divider between sections (put it at the bottom of the upper section, same fill as the next one).
+{"type":"shape","shape":"star","points":5,"inner":0.45,"w":48,"h":48,"fill":"#F59E0B"}, {"type":"shape","shape":"polygon","sides":6,"w":64,"h":64,...} (hexagon, triangle = 3 sides), {"type":"shape","shape":"ring","thickness":12,"w":120,"h":120,"fill":"#6366F1"} (donut).
+{"type":"shape","shape":"path","d":"M0 0L40 0Q60 20 40 40L0 40Z","viewBox":[60,40],"w":60,"h":40,"fill":"#111"} — your own SVG path (commands M L H V C S Q T A Z), scaled from viewBox to w×h (default viewBox = w×h). "rule":"evenodd" makes holes where contours overlap.
+Shapes take fill (also gradients), stroke, strokeWidth, opacity, rotation, layerBlur, position/x/y/right/bottom like any node. They are real vector layers, editable by hand. The tree shows them back with their spec; to change geometry replace the node ({"op":"replace"}), to restyle use update (fill, opacity, x, y, w, h).
+BOOLEAN: {"type":"bool","op":"subtract","name":"Ticket card","fill":"#FFFFFF","children":[{"type":"rect","x":0,"y":0,"w":320,"h":180,"radius":16},{"type":"ellipse","x":-12,"y":84,"w":24,"h":24}]} — children are rect/ellipse/shape (x/y from the bool's own origin, NOT auto-layout). subtract: the FIRST child minus the others; union: merge; intersect: only the overlap; exclude: all except the overlap. Needs 2+ children. The result is ONE vector without children, so do not put text or photos inside: place those on top as siblings.
+MASK: inside a frame with "layout":"none", give a child "mask":true — it clips everything that comes AFTER it in the same frame (order matters; the mask node itself is not drawn). Photo in a blob: {"type":"frame","layout":"none","w":320,"h":320,"children":[{"type":"shape","shape":"blob","w":320,"h":320,"mask":true},{"type":"image","query":"...","x":0,"y":0,"w":320,"h":320}]}. Do not use "mask" inside auto-layout frames.
+Layer order: children later in the list are on top; change it with {"op":"reorder","id":"<id>","to":"front|back|forward|backward"}.
+Check the screenshot after building: shapes are placed by coordinates, so verify they do not cover content and are not clipped by the parent (a frame without "clip":true lets them overflow).`,
+
+	patterns: `"fill":{"pattern":"dots|grid|lines|diagonal|waves|noise|topo","color":"#00000026","size":4,"gap":16,"bg":"#F7F3EE"} on a frame/rect.
+A tiled texture over the "bg" color (dots: dot diameter size, spacing gap; grid/lines/diagonal: stroke from size; waves/topo: curves; noise: speckle). Use it moderately: hero backgrounds, section dividers, accent cards; keep color very low-contrast so text stays readable. The tree shows the pattern fill back as the same object — to change it send a new "fill".`,
+
+	grouping: `{"op":"group","ids":["<id>",...],"name":"<optional>","as":"<optional alias>"} — wraps sibling nodes (same parent) into a Figma group at the position of the first one; the new group id is reported back in the build warnings. "frame":true wraps the nodes into a FRAME instead (same position; children keep their places) and accepts frame fields like update (layout, gap, padding, fill, radius, stroke, w, h); with "layout" and no numeric w/h the frame hugs its content. Use frame:true when the wrapper needs auto-layout, a background, padding or radius; a plain group otherwise.
+{"op":"ungroup","id":"<id>"} — removes a group (or a plain frame) and moves its children into its parent in place.
+For regrouping many layers at once prefer {"op":"restructure"}.`,
+
+	annotations: `Review notes as annotations (plugins cannot create canvas comments):
+- {"op":"annotate","id":"<node>","text":"Contrast 3.1:1 — too low for body text"} adds a note (category "Vivi review"); notes on a node are kept, other people's annotations are never touched.
+- {"op":"clear_annotations","id":"<frame, optional>"} removes only Vivi annotations (review and dev) in that frame or on the whole page.
+For an AUDIT request: annotate the problem layers and do NOT change the design; list the findings in "summary" with layer ids in backticks.`,
+};
+
+export const SCHEMA_NAMES = Object.keys(SCHEMAS);
+
+export function schemaText(name) {
+	const key = typeof name === "string" ? name.trim().toLowerCase() : "";
+	if (!SCHEMAS[key]) return "";
+	return `\n\nFull schema of "${key}" (you asked for it):\n${SCHEMAS[key]}\nNow output the final answer using it.`;
+}

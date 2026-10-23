@@ -1,0 +1,12 @@
+{
+	"name": "Vivi Agent",
+	"id": "claude-design-agent-dev",
+	"api": "1.0.0",
+	"main": "dist/code.js",
+	"ui": "dist/ui.html",
+	"editorType": ["figma"],
+	"networkAccess": {
+		"allowedDomains": ["ws://localhost:8787"],
+		"reasoning": "Подключение к локальному серверу-мосту, который общается с Claude через ACP"
+	}
+}

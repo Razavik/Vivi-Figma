@@ -1,0 +1,11 @@
+node_modules/
+dist/
+*.log
+.env
+.test-build/
+server/exports/
+plugin/tmp/
+TestMCP/
+*.tsbuildinfo
+CLAUDE.md
+plans/

@@ -1,0 +1,27 @@
+{
+  "name": "figma-agent-server",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "node index.mjs",
+    "test": "node --test test/"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.302",
+    "@material-symbols/svg-400": "^0.48.1",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@phosphor-icons/core": "^2.1.1",
+    "@tabler/icons": "^3.49.0",
+    "bwip-js": "^4.11.4",
+    "lucide-static": "^1.58.0",
+    "mammoth": "^1.13.0",
+    "qrcode": "^1.5.4",
+    "unpdf": "^1.9.0",
+    "ws": "^8.18.0",
+    "zod": "^4.6.7"
+  }
+}
