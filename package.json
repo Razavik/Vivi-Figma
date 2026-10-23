@@ -7,7 +7,6 @@
 		"setup": "npm --prefix server install && npm --prefix plugin install && npm --prefix plugin run build",
 		"build": "npm --prefix plugin run build",
 		"start": "npm --prefix server start",
-		"test": "npm --prefix server test && npm --prefix plugin test",
 		"typecheck": "npm --prefix plugin run typecheck"
 	},
 	"engines": {

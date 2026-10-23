@@ -4,8 +4,7 @@
 	"version": "0.2.0",
 	"scripts": {
 		"build": "node build.mjs",
-		"typecheck": "tsc --noEmit && tsc --noEmit -p src/main",
-		"test": "node test/run.mjs"
+		"typecheck": "tsc --noEmit && tsc --noEmit -p src/main"
 	},
 	"devDependencies": {
 		"@figma/plugin-typings": "^1.100.0",

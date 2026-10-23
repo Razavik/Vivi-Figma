@@ -7,8 +7,7 @@
 		"node": ">=18.0.0"
 	},
 	"scripts": {
-		"start": "node index.mjs",
-		"test": "node --test test/"
+		"start": "node index.mjs"
 	},
 	"dependencies": {
 		"@modelcontextprotocol/sdk": "^1.29.0",

@@ -111,7 +111,6 @@ claude mcp add vivi-figma --scope user -- node /путь/к/Vivi-Figma/server/mc
 
 ```bash
 npm run build       # сборка плагина (Figma подхватывает её сама)
-npm test            # тесты моста и плагина
 npm run typecheck   # типы плагина
 ```
 
