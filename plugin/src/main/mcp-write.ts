@@ -96,6 +96,32 @@ async function placeOf(old: SceneNode): Promise<ReplacePlace> {
 	};
 }
 
+const PLACE_GAP = 120;
+
+// Куда положить новый верхний фрейм, чтобы он не лёг поверх других: явные x/y,
+// рядом с нодой after (справа или снизу) либо справа от всего, что уже на странице.
+async function freePlace(args: Record<string, unknown>): Promise<ReplacePlace | null> {
+	const gap = typeof args.gap === "number" && args.gap >= 0 ? Math.min(args.gap, 2000) : PLACE_GAP;
+	if (typeof args.x === "number" && typeof args.y === "number") return { x: Math.round(args.x), y: Math.round(args.y), parent: null, index: 0 };
+	const boxOf = (n: BaseNode): Rect | null => ("absoluteBoundingBox" in n ? (n as SceneNode & { absoluteBoundingBox: Rect | null }).absoluteBoundingBox : null);
+	if (typeof args.after === "string" && args.after) {
+		const ref = await figma.getNodeByIdAsync(args.after);
+		const b = ref && !ref.removed ? boxOf(ref) : null;
+		if (!b) throw new Error(`after: нода ${args.after} не найдена`);
+		return args.direction === "below"
+			? { x: Math.round(b.x), y: Math.round(b.y + b.height + gap), parent: null, index: 0 }
+			: { x: Math.round(b.x + b.width + gap), y: Math.round(b.y), parent: null, index: 0 };
+	}
+	const boxes = figma.currentPage.children.map(boxOf).filter((b): b is Rect => !!b);
+	if (!boxes.length) return null;
+	const top = Math.min(...boxes.map((b) => b.y));
+	const right = Math.max(...boxes.map((b) => b.x + b.width));
+	const bottom = Math.max(...boxes.map((b) => b.y + b.height));
+	return args.direction === "below"
+		? { x: Math.round(Math.min(...boxes.map((b) => b.x))), y: Math.round(bottom + gap), parent: null, index: 0 }
+		: { x: Math.round(right + gap), y: Math.round(top), parent: null, index: 0 };
+}
+
 // figma_create: корень спеки — frame. parent — положить в контейнер, replace — заменить ноду.
 export async function runCreate(args: Record<string, unknown>): Promise<WriteResult> {
 	const spec = args.spec as AnySpec | undefined;
@@ -115,6 +141,8 @@ export async function runCreate(args: Record<string, unknown>): Promise<WriteRes
 			if (!target || target.removed || !("children" in target) || target.type === "INSTANCE")
 				return { ok: false, error: `parent: нода ${args.parent} не найдена или в неё нельзя вставлять` };
 			place = { x: 0, y: 0, parent: target as BaseNode & ChildrenMixin, index: (target as ChildrenMixin).children.length };
+		} else {
+			place = await freePlace(args);
 		}
 		await startRun(`create: ${String(spec.name ?? "frame")}`);
 		if (old) await snapshotFor([old.id]);
@@ -135,6 +163,7 @@ export async function runCreate(args: Record<string, unknown>): Promise<WriteRes
 				rootId: root.id,
 				name: root.name,
 				size: [Math.round(root.width), Math.round(root.height)],
+				position: [Math.round(root.x), Math.round(root.y)],
 				count: state.nodeCount,
 				warnings: state.warnings.slice(),
 				issues: lintNodes([root]),

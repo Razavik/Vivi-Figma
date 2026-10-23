@@ -112,12 +112,17 @@ export const MCP_TOOLS_WRITE = {
 		write: true,
 		timeoutMs: 120_000,
 		description:
-			"Build a design in the open Figma file as REAL nodes (frames, auto-layout, text, shapes, photos, icons) from a JSON spec. One section per call (up to ~80 nodes); returns rootId, node tree with ids, lint issues, warnings and a screenshot. Use parent to put it inside a container, replace to rebuild an existing node in place. Undo with figma_undo. Stock photos (image.query) are searched on the internet by the keywords. " +
+			"Build a design in the open Figma file as REAL nodes (frames, auto-layout, text, shapes, photos, icons) from a JSON spec. One section per call (up to ~80 nodes); returns rootId, node tree with ids, lint issues, warnings and a screenshot. New top-level frames are placed in free space (right of what is already on the page, top-aligned; direction:'below' puts them under it, after:<id> next to a given node, x/y exact) so they never overlap. Use parent to put it inside a container, replace to rebuild an existing node in place. Undo with figma_undo. Stock photos (image.query) are searched on the internet by the keywords. " +
 			SPEC_BRIEF,
 		input: {
 			spec: z.object({ type: z.literal("frame") }).passthrough().describe("Root frame spec"),
 			parent: z.string().optional().describe("Container node id to insert into (default: the current page)"),
 			replace: z.string().optional().describe("Node id to delete and rebuild from this spec (only for an explicit redesign)"),
+			after: z.string().optional().describe("Place the new frame next to this node (right of it, or below with direction:'below') instead of the default"),
+			direction: z.enum(["right", "below"]).optional().describe("Where free space is taken: right of everything on the page (default) or below it / below 'after'"),
+			x: z.number().optional().describe("Explicit position on the page (needs y too)"),
+			y: z.number().optional(),
+			gap: z.number().min(0).max(2000).optional().describe("Space to the neighbour, default 120"),
 		},
 	},
 	edit: {
