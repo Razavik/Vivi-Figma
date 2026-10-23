@@ -4,7 +4,7 @@
 import { buildRoot, placeAnchored, type ReplacePlace } from "./builder";
 import type { AnySpec } from "./canvas-state";
 import { state } from "./canvas-state";
-import { flushStyleBindings } from "./designsystem";
+import { flushStyleBindings, loadDesignSystem } from "./designsystem";
 import { applyEditOp, type EditOp } from "./edits";
 import { lint, setRequestLang, type Issue, type LintNode } from "./lint";
 import { compactSpec, type Spec } from "./mcp-describe";
@@ -31,7 +31,7 @@ function resetState(): void {
 
 // Новый прогон для отката: id монотонный, первая запись за сессию плагина
 // ещё и сохраняет версию в историю файла Figma.
-async function startRun(title: string): Promise<void> {
+export async function beginWrite(title: string): Promise<void> {
 	lastRunId = Math.max(lastRunId + 1, Date.now());
 	setRequestLang(""); // язык запроса неизвестен — проверку «язык текста против языка запроса» отключаем
 	await beginRun(lastRunId, title);
@@ -40,6 +40,9 @@ async function startRun(title: string): Promise<void> {
 		void figma.saveVersionHistoryAsync("Vivi MCP: перед правками агента", title).catch(() => {});
 	}
 }
+
+// Советы вместо замечаний: повторы без компонента и смесь наборов иконок не ошибки.
+const HINT_KINDS = new Set(["repeat", "icon-sets"]);
 
 function lintNodes(nodes: SceneNode[]): Issue[] {
 	const out: Issue[] = [];
@@ -64,10 +67,20 @@ function hasPhotos(node: SceneNode): boolean {
 	}
 }
 
+function splitIssues(all: Issue[]): { issues: Issue[]; hints: Issue[] } {
+	return { issues: all.filter((i) => !HINT_KINDS.has(i.kind)), hints: all.filter((i) => HINT_KINDS.has(i.kind)) };
+}
+
+// Фото с IMAGE-заливкой только что созданы (или экспортируются сразу после вставки):
+// даём Figma время их декодировать.
+export async function settleImages(node: SceneNode): Promise<void> {
+	if (hasPhotos(node)) await new Promise((r) => setTimeout(r, 1200));
+}
+
 async function previewOf(node: SceneNode | null): Promise<{ data: string; mimeType: string }[]> {
 	if (!node || node.removed || !("exportAsync" in node)) return [];
 	try {
-		if (hasPhotos(node)) await new Promise((r) => setTimeout(r, 1200));
+		await settleImages(node);
 		const scale = Math.min(2, Math.max(0.1, 1024 / Math.max(node.width, node.height, 1)));
 		const bytes = await node.exportAsync({ format: "PNG", constraint: { type: "SCALE", value: scale } });
 		return [{ data: figma.base64Encode(bytes), mimeType: "image/png" }];
@@ -141,6 +154,7 @@ export async function runCreate(args: Record<string, unknown>): Promise<WriteRes
 	// Корень с auto-layout без высоты — по содержимому (иначе высота остаётся стартовой и всё вылезает).
 	if ((spec.layout === "vertical" || spec.layout === "horizontal") && spec.h === undefined) spec.h = "hug";
 	resetState();
+	await loadDesignSystem(); // стили, созданные только что (figma_styles), доступны как "style:<имя>"
 	const before = new Set(figma.currentPage.children.map((n) => n.id));
 	try {
 		let old: SceneNode | null = null;
@@ -167,7 +181,7 @@ export async function runCreate(args: Record<string, unknown>): Promise<WriteRes
 		} else {
 			place = await freePlace(args);
 		}
-		await startRun(`create: ${String(spec.name ?? "frame")}`);
+		await beginWrite(`create: ${String(spec.name ?? "frame")}`);
 		if (old) await snapshotFor([old.id]);
 		else if (place?.parent) await snapshotFor([place.parent.id]);
 		const root = await buildRoot(spec, place);
@@ -189,7 +203,7 @@ export async function runCreate(args: Record<string, unknown>): Promise<WriteRes
 				position: [Math.round(root.x), Math.round(root.y)],
 				count: state.nodeCount,
 				warnings: state.warnings.slice(),
-				issues: lintNodes([root]),
+				...splitIssues(lintNodes([root])),
 				tree: treeOf(root),
 				undoRuns: undoableRuns().length,
 			},
@@ -215,8 +229,9 @@ export async function runEdit(args: Record<string, unknown>): Promise<WriteResul
 	if (!Array.isArray(edits) || !edits.length) return { ok: false, error: "edits: нужен непустой массив операций" };
 	if (edits.length > MAX_EDITS) return { ok: false, error: `edits: не больше ${MAX_EDITS} операций за вызов` };
 	resetState();
+	await loadDesignSystem();
 	const ops = edits as EditOp[];
-	await startRun(`edit: ${ops.length} оп.`);
+	await beginWrite(`edit: ${ops.length} оп.`);
 	const targets: string[] = [];
 	for (const op of ops) {
 		for (const key of ["id", "parent"] as const) if (typeof op?.[key] === "string") targets.push(op[key] as string);
@@ -253,7 +268,7 @@ export async function runEdit(args: Record<string, unknown>): Promise<WriteResul
 			applied: ops.length,
 			warnings: state.warnings.slice(),
 			infos: state.infos.slice(),
-			issues: lintNodes(nodes),
+			...splitIssues(lintNodes(nodes)),
 			changed: nodes.slice(0, 5).map((n) => ({ id: n.id, name: n.name, tree: treeOf(n, 120) })),
 			aliases: Object.fromEntries([...aliases].filter(([k]) => k !== "page")),
 			undoRuns: undoableRuns().length,
@@ -262,11 +277,27 @@ export async function runEdit(args: Record<string, unknown>): Promise<WriteResul
 	};
 }
 
-// figma_undo: откатывает последние N прогонов записи (по умолчанию 1).
+// figma_undo: откатывает последние N прогонов записи (по умолчанию 1) по одному —
+// сбой на одном прогоне не должен терять остальные.
 export async function runUndo(args: Record<string, unknown>): Promise<WriteResult> {
-	const ids = undoableRuns();
-	if (!ids.length) return { ok: true, data: { undone: 0, message: "нечего откатывать" } };
-	const n = Math.min(ids.length, Math.max(1, Math.floor(Number(args.runs) || 1)));
-	const result = await undoRuns(ids[ids.length - n]);
-	return { ok: true, data: { undone: result.runs, restored: result.restored, removed: result.removed, left: undoableRuns().length } };
+	if (!undoableRuns().length) return { ok: true, data: { undone: 0, message: "нечего откатывать" } };
+	const n = Math.min(undoableRuns().length, Math.max(1, Math.floor(Number(args.runs) || 1)));
+	let undone = 0;
+	let restored = 0;
+	let removed = 0;
+	const errors: string[] = [];
+	for (let i = 0; i < n; i++) {
+		const ids = undoableRuns();
+		if (!ids.length) break;
+		try {
+			const result = await undoRuns(ids[ids.length - 1]);
+			undone += result.runs;
+			restored += result.restored;
+			removed += result.removed;
+		} catch (err) {
+			errors.push(String((err as Error)?.message || err));
+			break;
+		}
+	}
+	return { ok: true, data: { undone, restored, removed, left: undoableRuns().length, ...(errors.length ? { errors } : {}) } };
 }

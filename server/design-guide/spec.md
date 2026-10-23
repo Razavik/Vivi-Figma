@@ -89,3 +89,17 @@ COMPLEX SHAPES — you decide whether a design needs them. Native nodes (frame, 
 - Types: {"type":"shape","shape":"blob|wave|star|polygon|ring|path",...}, {"type":"bool","op":"union|subtract|intersect|exclude","children":[shapes]}, "mask":true on a child of a layout:"none" frame, {"op":"reorder"} for layer order. Get the full schema with figma_schema {"name":"shapes"} BEFORE the first use (once per task).
 ICON SETS: icons default to Lucide ("arrow-right"). Other sets by prefix: "ph:heart" (Phosphor; styles "ph:heart:fill|bold|light|thin|duotone" — soft, friendly), "tabler:heart" ("tabler:heart:filled" — technical, UI-dense), "ms:home" (Material Symbols; "ms:home:rounded|sharp|fill|rounded-fill|sharp-fill" — Android/Google look). Use ONE set per design and note it in "notes"; mixed sets are reported by lint.
 
+
+
+LOCAL FILES: {"type":"image","path":"public/img/hero.jpg"} puts a file from the project (png/jpg/webp/gif, ≤ 8 MB; path relative to the project root or absolute inside it) into the image node instead of a stock photo; {"type":"icon","path":"src/assets/logo.svg","w":120,"h":32} inserts an svg file. Files outside the project are refused.
+
+
+CHARTS AND TABLES — never draw charts or tables by hand from rects and text; use ready blocks, the server expands them into real layers:
+- {"type":"chart","kind":"bar|hbar|line|area|pie|donut|sparkline","w":480,"h":280,"title":"...","data":[{"label":"Jan","value":120},{"label":"Feb","value":180}],"series":[{"name":"Revenue","color":"style:... or #4F46E5"}],"axis":true,"grid":true,"values":false,"stacked":false}. Several series: data[i].values:[..] in the order of "series" (name each series). pie/donut take one value per slice (colors from the palette or series[i].color). Use brand/token colors for series, not random ones. Real, plausible numbers that match the topic. Max 60 points.
+- {"type":"table","w":"fill","columns":[{"title":"Plan"},{"title":"Price","align":"right","w":120}],"rows":[["Start","990"],["Pro","2 490"]],"header":true,"zebra":false,"dense":false,"dividers":true}. Numeric columns are right-aligned automatically; set "w" only for fixed columns, others share the width. Max 100 rows, 12 columns.
+- Both are inserted like any other node (also inside "insert"). In the tree you get them back as the same chart/table spec with an "id": to change the DATA (e.g. "set March to 300") send {"op":"update","id":"<id>","chart":{...full new spec...}} (or "table") — the block is rebuilt in place; do not edit its inner layers one by one.
+
+GENERATED BLOCKS — ready types the server expands into real layers (also usable in "insert"; change the data later with {"op":"update","id":"<id>","<type>":{...full new spec...}}):
+- {"type":"avatar","name":"Anna Smith","size":40,"photo":false} — circle with initials on a muted color derived from the name (same name, same color); "photo":true uses a portrait photo. For people in reviews, teams, comments.
+- {"type":"qr","value":"https://...","size":120} — a real scannable QR code.
+- Rarer types — get the full schema with figma_schema {"name":"<name>"} BEFORE using them: "logo" (placeholder brand logo: monogram, wordmark, geometric), "barcode" (EAN-13, Code128…), "mockup" (iphone/android/ipad/macbook/browser/watch frame with a screen snapshot), "map" (schematic or real OpenStreetMap map with pins), "shapes" (blob/wave/star/polygon/ring/path, boolean operations, masks, layer order), "grouping" (group / ungroup), "patterns" (tiled texture fill), "annotations" (review notes as Figma annotations, audits).

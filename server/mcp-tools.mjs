@@ -105,7 +105,9 @@ export const MCP_TOOLS = {
 	},
 };
 
-const SPEC_BRIEF = `Spec = a tree of nodes, each {"type":...}: frame (layout none|vertical|horizontal, gap, padding [v,h]|[t,r,b,l], align, cross, w/h number|"hug"|"fill", fill "#RRGGBB"|gradient, radius, stroke, strokeWidth, shadow, clip, children), text (text, fontSize, fontWeight regular|medium|semibold|bold, fontFamily, color, align, lineHeight, letterSpacing, textCase, w), rect, ellipse, line, image ({"query":"keywords"} downloads a stock photo; or "data" base64 + "mime"), icon ({"icon":"arrow-right"} Lucide name; "ph:heart" Phosphor if installed), instance ({"component":"<id|name>","overrides":{...}}), shape/bool (vector shapes). Root must be a frame with a numeric w. Auto-layout by default ("hug" + padding), no emoji, real copy. Call figma_guide before the first design — it has the full schema and the design rules.`;
+const SPEC_BRIEF = `Spec = a tree of nodes, each {"type":...}: frame (layout none|vertical|horizontal, gap, padding [v,h]|[t,r,b,l], align, cross, w/h number|"hug"|"fill", fill "#RRGGBB"|gradient, radius, stroke, strokeWidth, shadow, clip, children), text (text, fontSize, fontWeight regular|medium|semibold|bold, fontFamily, color, align, lineHeight, letterSpacing, textCase, w), rect, ellipse, line, image ({"query":"keywords"} downloads a stock photo; or "path" = a file inside the project; or "data" base64 + "mime"), icon ({"icon":"arrow-right"} Lucide name; "ph:heart" Phosphor if installed), instance ({"component":"<id|name>","overrides":{...}}), shape/bool (vector shapes), and ready blocks: chart (bar/line/area/pie/donut…), table, avatar, logo, qr, barcode, mockup, map — expanded into real layers (editable; change a block's data with update + the block field). Full block fields: figma_guide + figma_schema. Root must be a frame with a numeric w. Auto-layout by default ("hug" + padding), no emoji, real copy. Call figma_guide before the first design — it has the full schema and the design rules.`;
+
+const fileField = z.string().optional().describe("Expected name of the open Figma file (from figma_status): the write is refused if another file is open now");
 
 export const MCP_TOOLS_WRITE = {
 	create: {
@@ -123,6 +125,7 @@ export const MCP_TOOLS_WRITE = {
 			x: z.number().optional().describe("Explicit position on the page (needs y too)"),
 			y: z.number().optional(),
 			gap: z.number().min(0).max(2000).optional().describe("Space to the neighbour, default 120"),
+			file: fileField,
 		},
 	},
 	edit: {
@@ -132,6 +135,7 @@ export const MCP_TOOLS_WRITE = {
 			'Change existing nodes with a list of operations run in order: update (fields: name, fill, stroke, radius, shadow, text, fontSize, color, w, h, layout, gap, padding, align…; bulk via "ids":[..] or "match":{in,name,text,type}), move, delete, insert (a full node spec into a parent), duplicate, rename, reorder, restructure (regroup nodes by a target tree), group/ungroup, make_component, combine_variants, rebuild. Ids come from figma_node/figma_outline. An op that creates a node may carry "as":"name" — later ops refer to it as "$name" ("$page" = current page). Returns warnings (failed ops), lint issues, changed trees and a screenshot. See figma_guide for the full op list.',
 		input: {
 			edits: z.array(z.object({ op: z.string() }).passthrough()).min(1).max(200).describe("Operations, e.g. [{op:'update',id:'12:3',fill:'#111111'}]"),
+			file: fileField,
 		},
 	},
 	undo: {
@@ -139,13 +143,54 @@ export const MCP_TOOLS_WRITE = {
 		description: "Revert the last N write runs (figma_create / figma_edit calls) made through this plugin: restores changed nodes and removes created ones. Default 1; the last 8 runs are kept.",
 		input: {
 			runs: z.number().int().min(1).max(8).optional().describe("How many recent runs to revert, default 1"),
+			file: fileField,
+		},
+	},
+	styles: {
+		write: true,
+		description:
+			'Create or update (by name) color styles, text styles and variables from design tokens, so a design system exists before building. Then reference them in specs as "style:<name>" (fill, color, stroke). Not covered by figma_undo.',
+		input: {
+			colors: z.record(z.string(), z.string()).optional().describe('{"Brand/Primary":"#B6F24A","Text/Default":"#F2F5FF"}'),
+			texts: z
+				.record(z.string(), z.object({ family: z.string().optional(), weight: z.string().optional(), size: z.number(), lineHeight: z.number().optional(), letterSpacing: z.number().optional() }))
+				.optional()
+				.describe('{"Heading/H1":{"family":"Inter","weight":"bold","size":56,"lineHeight":60}}'),
+			variables: z
+				.object({ collection: z.string(), values: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])) })
+				.optional()
+				.describe('Variables in one collection: hex strings become COLOR, numbers FLOAT, booleans BOOLEAN, other strings STRING'),
+			file: fileField,
+		},
+	},
+	componentize: {
+		write: true,
+		description:
+			"Turn 2+ repeated blocks of the SAME structure (e.g. 4 stat cards, 3 list rows) into one main component plus instances: the first block becomes the component, the others are replaced by instances that keep their own texts and photos. ids must be frames; undo with figma_undo.",
+		input: {
+			ids: z.array(z.string()).min(2).max(40).describe("Node ids (or links) of the repeated blocks"),
+			name: z.string().optional().describe('Component name, e.g. "Card / Stat"'),
+			file: fileField,
+		},
+	},
+	fonts: {
+		description: "Fonts available in Figma: families (optionally filtered by query) and those already used on the page; with family — its available styles (weights). Pick fontFamily for specs from here.",
+		input: {
+			query: z.string().optional().describe("Filter families by substring"),
+			family: z.string().optional().describe("Return the styles of this family"),
+		},
+	},
+	focus: {
+		description: "Select nodes and scroll/zoom Figma to show them to the user (switches page if needed). Use after building something the user should see.",
+		input: {
+			ids: z.array(z.string()).min(1).max(50).describe("Node ids or Figma links"),
 		},
 	},
 	schema: {
 		local: true,
-		description: 'Full schema text of rarely used spec parts: "shapes" (blob/wave/star/polygon/ring/path + boolean ops + masks), "grouping" (group/ungroup). Without name lists the names.',
+		description: 'Full schema text of rarely used spec parts: "logo", "barcode", "qr", "mockup", "map" (ready blocks), "shapes" (blob/wave/star/polygon/ring/path + boolean ops + masks), "patterns" (texture fills), "grouping" (group/ungroup). Without name lists the names.',
 		input: {
-			name: z.string().optional().describe("shapes | grouping"),
+			name: z.string().optional().describe("logo | barcode | qr | mockup | map | shapes | patterns | grouping"),
 		},
 	},
 	guide: {

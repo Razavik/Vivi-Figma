@@ -379,6 +379,13 @@ async function revertRun(
 			entry.backupId,
 		)) as SceneNode | null;
 		if (!backup || backup.removed) continue;
+		// Копия могла стать недоступной (страницу истории чистили вручную): тогда
+		// текущую ноду не трогаем — иначе потеряли бы и её.
+		try {
+			backup.locked = false;
+		} catch {
+			continue;
+		}
 		const currentNode = await figma.getNodeByIdAsync(resolve(entry.topId));
 		if (currentNode && !currentNode.removed) {
 			try {
@@ -387,7 +394,6 @@ async function revertRun(
 				/* нельзя удалить — оставим как есть */
 			}
 		}
-		backup.locked = false;
 		backup.visible = true;
 		backup.name = entry.name;
 		backup.setPluginData(BACKUP_KEY, "");

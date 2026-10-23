@@ -16,7 +16,8 @@ import {
 	screenshotScale,
 	type AssetNode,
 } from "./mcp-core";
-import { runCreate, runEdit, runUndo } from "./mcp-write";
+import { runComponentize, runFocus, runFonts, runStyles } from "./mcp-extra";
+import { runCreate, runEdit, runUndo, settleImages } from "./mcp-write";
 import { collectTokens, compactSpec, mergeExtras, toCss, type NodeExtra, type Spec } from "./mcp-describe";
 import { firstSolid } from "./paint";
 import { searchIn, type SearchNode } from "./search";
@@ -101,7 +102,20 @@ async function collectExtras(root: SceneNode, maxNodes: number, boxes: boolean, 
 			const asset = assets.get(n.id);
 			if (asset) extra.asset = asset;
 		}
-		if (extra.box || extra.vector || extra.vars || extra.asset) extras.set(n.id, extra);
+		if (withVars) {
+			if (n.type === "INSTANCE") {
+				const props: Record<string, unknown> = {};
+				for (const [k, p] of Object.entries(n.componentProperties)) props[k.replace(/#d+:d+$/, "")] = p.value;
+				if (Object.keys(props).length) extra.props = props;
+			}
+			if ("reactions" in n && n.reactions.length) {
+				extra.reactions = n.reactions.slice(0, 6).map((r) => {
+					const a = (r.actions && r.actions[0]) || (r as { action?: Action }).action;
+					return { trigger: r.trigger?.type, action: a?.type, to: a && "destinationId" in a ? (a.destinationId ?? undefined) : undefined };
+				});
+			}
+		}
+		if (extra.box || extra.vector || extra.vars || extra.asset || extra.props || extra.reactions) extras.set(n.id, extra);
 		if ("children" in n) for (const c of n.children) await walk(c, depth + 1);
 	};
 	await walk(root, 0);
@@ -222,6 +236,7 @@ export async function runMcpTool(tool: unknown, args: Record<string, unknown>): 
 						ok: false,
 						error: "слишком большой скриншот (больше 40 мегапикселей) — уменьшите scale/maxSize или снимайте блоки по отдельности",
 					};
+				await settleImages(node);
 				const bytes = await node.exportAsync({ format: "PNG", constraint: { type: "SCALE", value: scale } });
 				return {
 					ok: true,
@@ -281,6 +296,14 @@ export async function runMcpTool(tool: unknown, args: Record<string, unknown>): 
 				);
 				return { ok: true, data: { assets, ...exported } };
 			}
+			case "fonts":
+				return await runFonts(args);
+			case "focus":
+				return await runFocus(args);
+			case "styles":
+				return await runStyles(args);
+			case "componentize":
+				return await runComponentize(args);
 			case "create":
 				return await runCreate(args);
 			case "edit":

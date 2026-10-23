@@ -136,8 +136,11 @@ function solidOf(n: LintNode): { color: RGB; alpha: number } | null {
 }
 
 // Фон под нодой: первая сплошная заливка у предков, иначе белая страница.
-function backgroundOf(n: LintNode): RGB {
+// null — ближайший фон градиент или фото: контраст по одному цвету не измерить.
+function backgroundOf(n: LintNode): RGB | null {
 	for (let p = n.parent; p; p = p.parent) {
+		const paints = Array.isArray(p.fills) ? (p.fills as readonly Paint[]).filter((f) => f.visible !== false) : [];
+		if (paints.some((f) => f.type === "IMAGE" || f.type.startsWith("GRADIENT"))) return null;
 		const s = solidOf(p);
 		if (s && s.alpha > 0.5) return s.color;
 	}
@@ -236,11 +239,13 @@ function walk(
 		const fg = solidOf(n);
 		if (fg) {
 			const bg = backgroundOf(n);
-			const ratio = contrast(blend(fg.color, fg.alpha, bg), bg);
-			const large = size >= 24 || (size >= 18.66 && isBold(n));
-			const need = large ? 3 : 4.5;
-			if (ratio < need)
-				add("contrast", `контраст ${ratio.toFixed(2)}:1, нужно не меньше ${need}:1`);
+			if (bg) {
+				const ratio = contrast(blend(fg.color, fg.alpha, bg), bg);
+				const large = size >= 24 || (size >= 18.66 && isBold(n));
+				const need = large ? 3 : 4.5;
+				if (ratio < need)
+					add("contrast", `контраст ${ratio.toFixed(2)}:1, нужно не меньше ${need}:1`);
+			}
 		}
 	}
 

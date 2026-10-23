@@ -156,6 +156,18 @@ async function call(tool, args) {
 
 const server = new McpServer({ name: "vivi-figma", version: "0.1.0" });
 
+// Защита от записи не в тот файл: имя открытого файла запоминается; если оно
+// сменилось с прошлого вызова (или не совпало с аргументом file) — отказ один раз.
+let lastFile = null;
+async function guardFile(expected) {
+	const now = (await call("status", {})).data?.file ?? null;
+	const prev = lastFile;
+	lastFile = now;
+	if (expected && now && expected !== now) throw new Error(`открыт файл «${now}», а ожидался «${expected}» — запись не выполнена`);
+	if (!expected && prev && now && prev !== now)
+		throw new Error(`открытый файл сменился: был «${prev}», сейчас «${now}». Запись не выполнена — вызовите figma_status, убедитесь, что это нужный файл, и повторите (или передайте file).`);
+}
+
 const text = (value) => ({ content: [{ type: "text", text: typeof value === "string" ? value : JSON.stringify(value) }] });
 const READONLY = process.env.MCP_READONLY === "1";
 
@@ -203,12 +215,17 @@ for (const [name, def] of Object.entries(MCP_TOOLS)) {
 				if (target?.error) throw new Error(target.error);
 				// Запись: проверка спеки и подготовка (иконки, фото) до вызова плагина.
 				let prepared = null;
-				if (def.write && name !== "undo") {
+				if (def.write) {
+					const { file, ...rest } = resolved.args;
+					resolved.args = rest;
+					await guardFile(file);
+				}
+				if (name === "create" || name === "edit") {
 					const payload = name === "create" ? resolved.args.spec : resolved.args.edits;
 					const bad = validateSpec(payload);
 					if (bad) throw new Error(bad);
 					applyLayoutDefaults(payload);
-					prepared = await prepareDesign(payload);
+					prepared = await prepareDesign(payload, { roots: EXPORT.roots });
 				}
 				const limit = BATCH_LIMITS[name];
 				const batch = limit && Array.isArray(resolved.args.ids) ? resolved.args.ids : null;
@@ -232,6 +249,7 @@ for (const [name, def] of Object.entries(MCP_TOOLS)) {
 				}
 				if (limit && !resolved.args.id) throw new Error("нужен id или ids");
 				const res = await call(name, resolved.args);
+				if (name === "status" && res.data?.file) lastFile = res.data.file;
 				if (isExport && target) {
 					const saved = saveExported(target.root, target.folder, res.data?.files);
 					return {

@@ -12,6 +12,9 @@ export interface NodeExtra {
 	vars?: Record<string, string>;
 	// Ассет для экспорта: фото (png) или иконка (svg).
 	asset?: { kind: "photo" | "icon"; format: "png" | "svg" };
+	// Свойства экземпляра компонента и прототипные переходы.
+	props?: Record<string, unknown>;
+	reactions?: { trigger?: string; action?: string; to?: string }[];
 }
 
 // Значения по умолчанию, которые в выводе только шумят.
@@ -62,6 +65,8 @@ export function mergeExtras<T extends Spec>(spec: T, extras: Map<string, NodeExt
 	if (extra?.vector) Object.assign(out, extra.vector);
 	if (extra?.vars) out.vars = extra.vars;
 	if (extra?.asset) out.asset = extra.asset;
+	if (extra?.props) out.props = extra.props;
+	if (extra?.reactions) out.reactions = extra.reactions;
 	if (Array.isArray(spec.children)) out.children = spec.children.map((c) => mergeExtras(c, extras));
 	return out as T;
 }

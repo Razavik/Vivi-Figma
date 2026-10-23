@@ -1,7 +1,7 @@
 // Чистая часть MCP-инструментов: белый список имён, разбор аргументов, масштаб
 // скриншота. Работа с Figma — в mcp-tools.ts (чтение) и mcp-write.ts (запись).
-export const MCP_READ_TOOLS = ["status", "selection", "outline", "node", "screenshot", "search", "design_system", "assets", "export", "export_assets", "tokens"] as const;
-export const MCP_WRITE_TOOLS = ["create", "edit", "undo"] as const;
+export const MCP_READ_TOOLS = ["status", "selection", "outline", "node", "screenshot", "search", "design_system", "assets", "export", "export_assets", "tokens", "fonts", "focus"] as const;
+export const MCP_WRITE_TOOLS = ["create", "edit", "undo", "styles", "componentize"] as const;
 export type McpTool = (typeof MCP_READ_TOOLS)[number] | (typeof MCP_WRITE_TOOLS)[number];
 
 export function isMcpTool(name: unknown): name is McpTool {
