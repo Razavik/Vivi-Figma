@@ -1,10 +1,11 @@
-// Чистая часть MCP-инструментов (только чтение): белый список имён, разбор
-// аргументов, масштаб скриншота. Работа с Figma — в mcp-tools.ts.
+// Чистая часть MCP-инструментов: белый список имён, разбор аргументов, масштаб
+// скриншота. Работа с Figma — в mcp-tools.ts (чтение) и mcp-write.ts (запись).
 export const MCP_READ_TOOLS = ["status", "selection", "outline", "node", "screenshot", "search", "design_system", "assets", "export", "export_assets", "tokens"] as const;
-export type McpTool = (typeof MCP_READ_TOOLS)[number];
+export const MCP_WRITE_TOOLS = ["create", "edit", "undo"] as const;
+export type McpTool = (typeof MCP_READ_TOOLS)[number] | (typeof MCP_WRITE_TOOLS)[number];
 
 export function isMcpTool(name: unknown): name is McpTool {
-	return typeof name === "string" && (MCP_READ_TOOLS as readonly string[]).includes(name);
+	return typeof name === "string" && ([...MCP_READ_TOOLS, ...MCP_WRITE_TOOLS] as readonly string[]).includes(name);
 }
 
 export function clampInt(v: unknown, lo: number, hi: number, d: number): number {

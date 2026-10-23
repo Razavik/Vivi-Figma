@@ -4,7 +4,7 @@ import { extrasOf } from "./extras";
 import { blockSpecFromMeta, patternFillFromData } from "./block-meta";
 import type { AnySpec } from "./canvas-state";
 import { state } from "./canvas-state";
-import { isBackup } from "./backup";
+import { isBackup } from "./undo";
 import {
 	ALIGN_TO_SPEC,
 	WEIGHT_FROM_STYLE,

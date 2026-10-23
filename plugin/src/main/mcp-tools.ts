@@ -16,6 +16,7 @@ import {
 	screenshotScale,
 	type AssetNode,
 } from "./mcp-core";
+import { runCreate, runEdit, runUndo } from "./mcp-write";
 import { collectTokens, compactSpec, mergeExtras, toCss, type NodeExtra, type Spec } from "./mcp-describe";
 import { firstSolid } from "./paint";
 import { searchIn, type SearchNode } from "./search";
@@ -280,6 +281,12 @@ export async function runMcpTool(tool: unknown, args: Record<string, unknown>): 
 				);
 				return { ok: true, data: { assets, ...exported } };
 			}
+			case "create":
+				return await runCreate(args);
+			case "edit":
+				return await runEdit(args);
+			case "undo":
+				return await runUndo(args);
 			case "design_system": {
 				const ds = await loadDesignSystem();
 				return { ok: true, data: { ...ds, components: loadComponents() } };

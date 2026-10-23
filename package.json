@@ -1,14 +1,16 @@
 {
 	"name": "vivi-figma-mcp",
-	"version": "0.2.3",
-	"description": "MCP-сервер: ИИ-агенты (Claude Code, Cursor, Devin…) смотрят дизайн в открытом файле Figma и выгружают из него картинки. Только чтение.",
+	"version": "0.3.0",
+	"description": "MCP-сервер: ИИ-агенты (Claude Code, Cursor, Devin…) смотрят дизайн в открытом файле Figma, выгружают из него картинки и создают/правят дизайн настоящими нодами.",
 	"license": "MIT",
 	"type": "module",
 	"keywords": [
 		"mcp",
 		"figma",
 		"model-context-protocol",
-		"design"
+		"design",
+		"figma-plugin",
+		"design-generation"
 	],
 	"repository": {
 		"type": "git",
@@ -22,6 +24,8 @@
 		"server/*.mjs",
 		"server/package.json",
 		"server/.env.example",
+		"server/design-guide",
+		"server/icons",
 		"plugin/manifest.json",
 		"plugin/dist",
 		"README.md",
@@ -32,7 +36,8 @@
 		"build": "npm --prefix plugin run build",
 		"start": "node server/index.mjs",
 		"typecheck": "npm --prefix plugin run typecheck",
-		"prepublishOnly": "npm --prefix plugin install && npm --prefix plugin run build"
+		"prepublishOnly": "node scripts/build-icons.mjs && npm --prefix plugin install && npm --prefix plugin run build",
+		"build:icons": "node scripts/build-icons.mjs"
 	},
 	"dependencies": {
 		"@modelcontextprotocol/sdk": "^1.29.0",
@@ -41,5 +46,8 @@
 	},
 	"engines": {
 		"node": ">=18.0.0"
+	},
+	"devDependencies": {
+		"lucide-static": "^1.61.0"
 	}
 }

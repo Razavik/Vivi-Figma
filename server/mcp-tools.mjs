@@ -1,4 +1,5 @@
-// Инструменты MCP-сервера Vivi: только чтение дизайна из открытого файла Figma.
+// Инструменты MCP-сервера Vivi: чтение дизайна из открытого файла Figma и (с 0.3)
+// создание и правка. write:true — меняют файл, local:true — отвечает сам сервер, без плагина.
 // Описания и схемы аргументов — единый источник для mcp.mjs (регистрация) и
 // моста (белый список имён, чтобы через relay не прошла чужая операция).
 import { z } from "zod";
@@ -104,8 +105,73 @@ export const MCP_TOOLS = {
 	},
 };
 
+const SPEC_BRIEF = `Spec = a tree of nodes, each {"type":...}: frame (layout none|vertical|horizontal, gap, padding [v,h]|[t,r,b,l], align, cross, w/h number|"hug"|"fill", fill "#RRGGBB"|gradient, radius, stroke, strokeWidth, shadow, clip, children), text (text, fontSize, fontWeight regular|medium|semibold|bold, fontFamily, color, align, lineHeight, letterSpacing, textCase, w), rect, ellipse, line, image ({"query":"keywords"} downloads a stock photo; or "data" base64 + "mime"), icon ({"icon":"arrow-right"} Lucide name; "ph:heart" Phosphor if installed), instance ({"component":"<id|name>","overrides":{...}}), shape/bool (vector shapes). Root must be a frame with a numeric w. Auto-layout by default ("hug" + padding), no emoji, real copy. Call figma_guide before the first design — it has the full schema and the design rules.`;
+
+export const MCP_TOOLS_WRITE = {
+	create: {
+		write: true,
+		timeoutMs: 120_000,
+		description:
+			"Build a design in the open Figma file as REAL nodes (frames, auto-layout, text, shapes, photos, icons) from a JSON spec. One section per call (up to ~80 nodes); returns rootId, node tree with ids, lint issues, warnings and a screenshot. Use parent to put it inside a container, replace to rebuild an existing node in place. Undo with figma_undo. Stock photos (image.query) are searched on the internet by the keywords. " +
+			SPEC_BRIEF,
+		input: {
+			spec: z.object({ type: z.literal("frame") }).passthrough().describe("Root frame spec"),
+			parent: z.string().optional().describe("Container node id to insert into (default: the current page)"),
+			replace: z.string().optional().describe("Node id to delete and rebuild from this spec (only for an explicit redesign)"),
+		},
+	},
+	edit: {
+		write: true,
+		timeoutMs: 120_000,
+		description:
+			'Change existing nodes with a list of operations run in order: update (fields: name, fill, stroke, radius, shadow, text, fontSize, color, w, h, layout, gap, padding, align…; bulk via "ids":[..] or "match":{in,name,text,type}), move, delete, insert (a full node spec into a parent), duplicate, rename, reorder, restructure (regroup nodes by a target tree), group/ungroup, make_component, combine_variants, rebuild. Ids come from figma_node/figma_outline. An op that creates a node may carry "as":"name" — later ops refer to it as "$name" ("$page" = current page). Returns warnings (failed ops), lint issues, changed trees and a screenshot. See figma_guide for the full op list.',
+		input: {
+			edits: z.array(z.object({ op: z.string() }).passthrough()).min(1).max(200).describe("Operations, e.g. [{op:'update',id:'12:3',fill:'#111111'}]"),
+		},
+	},
+	undo: {
+		write: true,
+		description: "Revert the last N write runs (figma_create / figma_edit calls) made through this plugin: restores changed nodes and removes created ones. Default 1; the last 8 runs are kept.",
+		input: {
+			runs: z.number().int().min(1).max(8).optional().describe("How many recent runs to revert, default 1"),
+		},
+	},
+	schema: {
+		local: true,
+		description: 'Full schema text of rarely used spec parts: "shapes" (blob/wave/star/polygon/ring/path + boolean ops + masks), "grouping" (group/ungroup). Without name lists the names.',
+		input: {
+			name: z.string().optional().describe("shapes | grouping"),
+		},
+	},
+	guide: {
+		local: true,
+		description:
+			"Design guide for creating designs: spec = node schema (all fields), craft = sizing + design rules, components = reusing components, edits = workflow and the list of edit operations. Read spec and edits (and craft for pages) BEFORE the first figma_create. Without topic returns spec + edits.",
+		input: {
+			topic: z.enum(["spec", "craft", "components", "edits", "all"]).optional(),
+		},
+	},
+	icons: {
+		local: true,
+		description: 'Find icon names for {"type":"icon","icon":"<name>"}: Lucide (always) plus Phosphor "ph:", Tabler "tabler:", Material "ms:" when installed. Returns up to 20 matches for a keyword.',
+		input: {
+			query: z.string().describe('Keyword, e.g. "cart", "arrow", "user"'),
+		},
+	},
+};
+Object.assign(MCP_TOOLS, MCP_TOOLS_WRITE);
+
 export const MCP_TOOL_NAMES = Object.keys(MCP_TOOLS);
 
 export function isMcpTool(name) {
 	return typeof name === "string" && Object.hasOwn(MCP_TOOLS, name);
+}
+
+// Инструменты, которые уходят в плагин (без local).
+export function isPluginTool(name) {
+	return isMcpTool(name) && !MCP_TOOLS[name].local;
+}
+
+export function timeoutFor(name, fallback) {
+	return (isMcpTool(name) && MCP_TOOLS[name].timeoutMs) || fallback;
 }

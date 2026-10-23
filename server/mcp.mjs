@@ -14,7 +14,11 @@ import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import WebSocket from "ws";
-import { BATCH_LIMITS, MCP_TOOLS } from "./mcp-tools.mjs";
+import { BATCH_LIMITS, MCP_TOOLS, timeoutFor } from "./mcp-tools.mjs";
+import { guideText } from "./design-guide.mjs";
+import { prepareDesign, validateSpec } from "./design-pipeline.mjs";
+import { searchIcons } from "./icons.mjs";
+import { SCHEMA_NAMES, schemaText } from "./schemas.mjs";
 import { exportRoots, exportTarget, projectRoot, resolveArgs, saveExported } from "./mcp-export.mjs";
 
 // server/.env — тот же файл, что у моста (порт и токен).
@@ -137,13 +141,14 @@ function connectOnce() {
 }
 
 async function call(tool, args) {
+	const limit = timeoutFor(tool, CALL_TIMEOUT - 10_000) + 10_000;
 	const ws = await open();
 	const reqId = `c${++seq}`;
 	return new Promise((resolve, reject) => {
 		const timer = setTimeout(() => {
 			waiting.delete(reqId);
 			reject(new Error("мост не ответил вовремя"));
-		}, CALL_TIMEOUT);
+		}, limit);
 		waiting.set(reqId, { resolve, reject, timer });
 		ws.send(JSON.stringify({ type: "mcp_call", reqId, tool, args }));
 	});
@@ -151,16 +156,39 @@ async function call(tool, args) {
 
 const server = new McpServer({ name: "vivi-figma", version: "0.1.0" });
 
+const text = (value) => ({ content: [{ type: "text", text: typeof value === "string" ? value : JSON.stringify(value) }] });
+const READONLY = process.env.MCP_READONLY === "1";
+
+// Инструменты, которые отвечают без плагина.
+function localTool(name, args) {
+	if (name === "schema") {
+		if (!args.name) return text({ schemas: SCHEMA_NAMES });
+		const body = schemaText(args.name);
+		if (!body) throw new Error(`нет схемы «${args.name}». Доступны: ${SCHEMA_NAMES.join(", ")}`);
+		return text(body);
+	}
+	if (name === "guide") {
+		const body = guideText(args.topic);
+		if (!body) throw new Error("topic: spec | craft | components | edits | all");
+		return text(body);
+	}
+	return text({ query: args.query, icons: searchIcons(args.query) });
+}
+
 for (const [name, def] of Object.entries(MCP_TOOLS)) {
+	if (READONLY && def.write) continue;
 	server.registerTool(
 		`figma_${name}`,
 		{
 			description: def.description,
 			inputSchema: def.input,
-			annotations: { readOnlyHint: true, openWorldHint: false },
+			annotations: def.write
+				? { readOnlyHint: false, destructiveHint: name !== "create", idempotentHint: false, openWorldHint: name === "create" }
+				: { readOnlyHint: true, openWorldHint: false },
 		},
 		async (args) => {
 			try {
+				if (def.local) return localTool(name, args || {});
 				// Ссылки Figma и id вида 12-345 → "12:345"; ссылка на другой файл — отказ.
 				const resolved = resolveArgs(args || {});
 				if (resolved.error) throw new Error(resolved.error);
@@ -173,6 +201,14 @@ for (const [name, def] of Object.entries(MCP_TOOLS)) {
 				const isExport = name === "export" || name === "export_assets";
 				const target = isExport ? exportTarget(EXPORT.roots, resolved.args.dir, resolved.args.folder, EXPORT.defaultDir) : null;
 				if (target?.error) throw new Error(target.error);
+				// Запись: проверка спеки и подготовка (иконки, фото) до вызова плагина.
+				let prepared = null;
+				if (def.write && name !== "undo") {
+					const payload = name === "create" ? resolved.args.spec : resolved.args.edits;
+					const bad = validateSpec(payload);
+					if (bad) throw new Error(bad);
+					prepared = await prepareDesign(payload);
+				}
 				const limit = BATCH_LIMITS[name];
 				const batch = limit && Array.isArray(resolved.args.ids) ? resolved.args.ids : null;
 				if (batch) {
@@ -206,7 +242,8 @@ for (const [name, def] of Object.entries(MCP_TOOLS)) {
 						],
 					};
 				}
-				const content = [{ type: "text", text: JSON.stringify(res.data ?? null) }];
+				const data = prepared && res.data && typeof res.data === "object" ? { ...res.data, prepared } : res.data;
+				const content = [{ type: "text", text: JSON.stringify(data ?? null) }];
 				for (const img of res.images || [])
 					if (img && typeof img.data === "string")
 						content.push({ type: "image", data: img.data, mimeType: img.mimeType || "image/png" });

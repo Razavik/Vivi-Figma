@@ -1,7 +1,7 @@
 // Relay запросов MCP → плагин. Подключённые плагины (UI-соединения моста)
 // регистрируются тут; вызов уходит в самое «свежее» открытое соединение и
-// ждёт mcp_result с тем же reqId. Только белый список инструментов (чтение).
-import { isMcpTool } from "./mcp-tools.mjs";
+// ждёт mcp_result с тем же reqId. Только белый список инструментов плагина.
+import { isPluginTool, timeoutFor } from "./mcp-tools.mjs";
 
 export const MCP_TIMEOUT_MS = 30_000;
 
@@ -27,7 +27,7 @@ export function createRelay({ timeoutMs = MCP_TIMEOUT_MS } = {}) {
 			return [...plugins].some((p) => p.isOpen());
 		},
 		call(tool, args = {}) {
-			if (!isMcpTool(tool))
+			if (!isPluginTool(tool))
 				return Promise.reject(new Error(`неизвестный инструмент: ${String(tool)}`));
 			const open = [...plugins].filter((p) => p.isOpen());
 			if (!open.length)
@@ -40,7 +40,7 @@ export function createRelay({ timeoutMs = MCP_TIMEOUT_MS } = {}) {
 				const timer = setTimeout(() => {
 					pending.delete(reqId);
 					reject(new Error("плагин не ответил за отведённое время"));
-				}, timeoutMs);
+				}, timeoutFor(tool, timeoutMs));
 				pending.set(reqId, { resolve, reject, timer });
 				plugin.send({ type: "mcp_call", reqId, tool, args: args && typeof args === "object" ? args : {} });
 			});

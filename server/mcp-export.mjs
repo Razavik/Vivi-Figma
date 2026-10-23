@@ -43,6 +43,8 @@ export function resolveArgs(args) {
 	try {
 		if (typeof out.id === "string") out.id = fix(out.id, "id");
 		if (typeof out.in === "string" && out.in) out.in = fix(out.in, "in");
+		if (typeof out.parent === "string" && out.parent) out.parent = fix(out.parent, "parent");
+		if (typeof out.replace === "string" && out.replace) out.replace = fix(out.replace, "replace");
 		if (Array.isArray(out.ids)) out.ids = out.ids.map((v) => fix(v, "ids"));
 	} catch (err) {
 		return { error: String(err.message || err) };
