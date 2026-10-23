@@ -7,7 +7,7 @@
 //   claude mcp add vivi-figma -- node D:/Work/Learning/FigmaAgent/server/mcp.mjs
 // Мост (npm start) и плагин в Figma должны быть запущены.
 import { spawn } from "node:child_process";
-import { openSync, readFileSync } from "node:fs";
+import { mkdirSync, openSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -36,7 +36,7 @@ const PROJECT = projectRoot(process.env, process.cwd(), homedir());
 const EXPORT = exportRoots({
 	project: PROJECT,
 	extra: process.env.MCP_EXPORT_ROOTS,
-	fallback: process.env.MCP_EXPORT_DIR || join(SERVER_DIR, "exports"),
+	fallback: process.env.MCP_EXPORT_DIR || join(homedir(), ".vivi-figma", "exports"),
 });
 
 let socket = null;
@@ -45,14 +45,18 @@ let seq = 0;
 const waiting = new Map();
 
 // Мост не запущен — поднимаем его в фоне (отдельный процесс, переживает этот):
-// лог в server/bridge.log. MCP_NO_AUTOSTART=1 отключает. Параллельные запуски
+// лог в ~/.vivi-figma/bridge.log. MCP_NO_AUTOSTART=1 отключает. Параллельные запуски
 // безопасны: лишний мост упадёт на занятом порте, а клиенты подключатся к первому.
+// Лог моста — в постоянной папке пользователя (кэш npx может очиститься).
+const LOG_DIR = join(homedir(), ".vivi-figma");
+const LOG_FILE = join(LOG_DIR, "bridge.log");
 let starting = null;
 function startBridge() {
 	if (starting) return starting;
 	let out = "ignore";
 	try {
-		out = openSync(join(SERVER_DIR, "bridge.log"), "a");
+		mkdirSync(LOG_DIR, { recursive: true });
+		out = openSync(LOG_FILE, "a");
 	} catch {
 		/* без лога тоже работаем */
 	}
@@ -65,7 +69,7 @@ function startBridge() {
 	});
 	child.on("error", () => {});
 	child.unref();
-	console.error("vivi-figma MCP: мост не был запущен — стартую в фоне (лог server/bridge.log)");
+	console.error("vivi-figma MCP: мост не был запущен — стартую в фоне (лог ~/.vivi-figma/bridge.log)");
 	starting = new Promise((r) => setTimeout(r, 800)).finally(() => setTimeout(() => (starting = null), 20_000));
 	return starting;
 }
@@ -126,7 +130,7 @@ function connectOnce() {
 		});
 		ws.on("error", () => {
 			opening = null;
-			reject(new Error(`мост не отвечает на ws://127.0.0.1:${PORT} и не запустился сам — проверьте server/bridge.log или запустите вручную (cd server && npm start)`));
+			reject(new Error(`мост не отвечает на ws://127.0.0.1:${PORT} и не запустился сам — проверьте ~/.vivi-figma/bridge.log или запустите вручную (cd server && npm start)`));
 		});
 	});
 	return opening;
