@@ -53,9 +53,21 @@ function lintNodes(nodes: SceneNode[]): Issue[] {
 	return out.slice(0, MAX_ISSUES);
 }
 
+// Фото с IMAGE-заливкой только что созданы: Figma декодирует их асинхронно, и
+// экспорт сразу после вставки рисует пустое место. Даём время на загрузку.
+function hasPhotos(node: SceneNode): boolean {
+	if (!("findAll" in node)) return false;
+	try {
+		return (node as FrameNode).findAll((n) => "fills" in n && Array.isArray(n.fills) && (n.fills as Paint[]).some((p) => p.type === "IMAGE")).length > 0;
+	} catch {
+		return false;
+	}
+}
+
 async function previewOf(node: SceneNode | null): Promise<{ data: string; mimeType: string }[]> {
 	if (!node || node.removed || !("exportAsync" in node)) return [];
 	try {
+		if (hasPhotos(node)) await new Promise((r) => setTimeout(r, 1200));
 		const scale = Math.min(2, Math.max(0.1, 1024 / Math.max(node.width, node.height, 1)));
 		const bytes = await node.exportAsync({ format: "PNG", constraint: { type: "SCALE", value: scale } });
 		return [{ data: figma.base64Encode(bytes), mimeType: "image/png" }];
