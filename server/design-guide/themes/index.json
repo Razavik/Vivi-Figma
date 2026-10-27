@@ -44,48 +44,6 @@
 			"pictured": "Workbench, Stage hero"
 		},
 		{
-			"slug": "arcade",
-			"name": "Arcade",
-			"genre": "playful",
-			"posture": "full-palette",
-			"paper": {
-				"band": "dark",
-				"L": 14,
-				"hue": 312
-			},
-			"display": {
-				"class": "pixel",
-				"face": "Silkscreen and Bungee"
-			},
-			"accent": {
-				"band": "chromatic-ember",
-				"hue": 40
-			},
-			"keywords": [
-				"game",
-				"indie",
-				"game studio",
-				"launch party",
-				"demo night",
-				"hackathon",
-				"festival",
-				"meetup",
-				"retro",
-				"pixel",
-				"arcade",
-				"nostalgia",
-				"synth",
-				"lo-fi",
-				"toy",
-				"zine",
-				"club night",
-				"loud"
-			],
-			"material": "aubergine CRT ground, lilac-white ink, Bungee capitals split in RGB over Chivo, Silkscreen figures, hard offset shadows, ember and acid signals",
-			"photo": "tint accent",
-			"pictured": "Marquee Hero, Stage hero"
-		},
-		{
 			"slug": "atelier",
 			"name": "Atelier",
 			"genre": "editorial",
@@ -227,50 +185,6 @@
 			"pictured": "Bento Grid, Poster hero"
 		},
 		{
-			"slug": "broadside",
-			"name": "Broadside",
-			"genre": "editorial",
-			"posture": "committed",
-			"paper": {
-				"band": "light",
-				"L": 92,
-				"hue": 88
-			},
-			"display": {
-				"class": "display-condensed",
-				"face": "Six Caps"
-			},
-			"accent": {
-				"band": "warm",
-				"hue": 33
-			},
-			"keywords": [
-				"auction",
-				"sale",
-				"market",
-				"fair",
-				"event",
-				"one night",
-				"announcement",
-				"town",
-				"notice",
-				"poster",
-				"bill",
-				"lots",
-				"machinery",
-				"tools",
-				"festival",
-				"fete",
-				"hammer",
-				"date",
-				"venue",
-				"tickets"
-			],
-			"material": "grained buff stock, near-black ink, Six Caps and Bevan wood capitals over Archivo Narrow, ink rules at one point or five, one vermilion",
-			"photo": "duotone ink paper con=20",
-			"pictured": "Marquee Hero, Settled hero"
-		},
-		{
 			"slug": "brutal",
 			"name": "Brutal",
 			"genre": "editorial",
@@ -311,48 +225,6 @@
 			"material": "near-white poster stock, near-black ink as 3px rules, boxed cells and solid fills, uppercase Libre Franklin 900 over its 400, zero radius, one acid-yellow fill",
 			"photo": "duotone ink paper con=24",
 			"pictured": "Marquee Hero, Poster hero"
-		},
-		{
-			"slug": "carnival",
-			"name": "Carnival",
-			"genre": "editorial",
-			"posture": "full-palette",
-			"paper": {
-				"band": "light",
-				"L": 92,
-				"hue": 50
-			},
-			"display": {
-				"class": "display-heavy",
-				"face": "Big Shoulders Display"
-			},
-			"accent": {
-				"band": "chromatic-yellow",
-				"hue": 95
-			},
-			"keywords": [
-				"record label",
-				"podcast",
-				"comedy",
-				"indie",
-				"zine",
-				"poster",
-				"illustrator",
-				"games",
-				"hot sauce",
-				"merch",
-				"streetwear",
-				"cassette",
-				"vinyl",
-				"live show",
-				"festival",
-				"loud",
-				"maximalist",
-				"scrappy"
-			],
-			"material": "tinted paper, deep warm ink, Big Shoulders Display 800 capitals set poster-large over Golos Text, 2px rules, a hard 4px ink shadow, two accents that compete as whole fields",
-			"photo": "natural vib=20 con=10",
-			"pictured": "Label and Ledger, Stage hero"
 		},
 		{
 			"slug": "cobalt",
@@ -846,50 +718,6 @@
 			"pictured": "Poster Sequence, Poster hero"
 		},
 		{
-			"slug": "halftone",
-			"name": "Halftone",
-			"genre": "playful",
-			"posture": "committed",
-			"paper": {
-				"band": "light",
-				"L": 96.2,
-				"hue": 94
-			},
-			"display": {
-				"class": "slab-serif",
-				"face": "Ultra"
-			},
-			"accent": {
-				"band": "warm",
-				"hue": 33
-			},
-			"keywords": [
-				"drinks",
-				"soda",
-				"food brand",
-				"print shop",
-				"zine",
-				"magazine",
-				"record label",
-				"packaging",
-				"campaign",
-				"label",
-				"bottle",
-				"can",
-				"screen print",
-				"bold",
-				"one colour",
-				"retail",
-				"craft",
-				"loud",
-				"fruit",
-				"snack"
-			],
-			"material": "butter-cream stock, brown-black ink, Ultra over Chivo, three-pixel ink rules and square wells, one vermilion printed solid and through a dot screen, photographs in full colour",
-			"photo": "natural vib=25 sat=10 con=6",
-			"pictured": "Back of the Can, Settled hero"
-		},
-		{
 			"slug": "hedgerow",
 			"name": "Hedgerow",
 			"genre": "editorial",
@@ -1238,179 +1066,6 @@
 			"pictured": "Narrative Workflow, Settled hero"
 		},
 		{
-			"slug": "newsprint",
-			"name": "Newsprint",
-			"genre": "editorial",
-			"posture": "restrained",
-			"paper": {
-				"band": "light",
-				"L": 94,
-				"hue": 92
-			},
-			"display": {
-				"class": "slab-serif",
-				"face": "Zilla Slab"
-			},
-			"accent": {
-				"band": "warm",
-				"hue": 32
-			},
-			"keywords": [
-				"newspaper",
-				"broadsheet",
-				"journalism",
-				"publication",
-				"magazine",
-				"newsletter",
-				"local news",
-				"op-ed",
-				"opinion",
-				"essay",
-				"longform",
-				"column",
-				"reportage",
-				"press",
-				"gazette",
-				"review",
-				"dispatch",
-				"literary"
-			],
-			"material": "pale newsprint stock, warm black ink, Zilla Slab heads over a Spectral body with Libre Franklin agate for listed figures, justified columns under hairline column rules, a double rule, one dried-brick signal",
-			"photo": "mono",
-			"pictured": "Broadsheet Front, Stage hero"
-		},
-		{
-			"slug": "overprint",
-			"name": "Overprint",
-			"genre": "playful",
-			"posture": "full-palette",
-			"paper": {
-				"band": "light",
-				"L": 91.5,
-				"hue": 92
-			},
-			"display": {
-				"class": "grotesk-heavy",
-				"face": "Anybody"
-			},
-			"accent": {
-				"band": "cool",
-				"hue": 212
-			},
-			"keywords": [
-				"venue",
-				"gigs",
-				"live music",
-				"festival",
-				"music",
-				"label",
-				"print studio",
-				"bar",
-				"club",
-				"poster",
-				"tickets",
-				"events",
-				"nightlife",
-				"two-colour",
-				"screenprint",
-				"punk",
-				"zine",
-				"loud",
-				"listings",
-				"door"
-			],
-			"material": "grey newsprint stock, near-black ink, wide heavy Anybody capitals over Archivo, flat square fills, a teal pass and an orange pass that print moss where they cross, photographs pulled through one pass",
-			"photo": "mono con=30",
-			"pictured": "Marquee Hero, Poster hero"
-		},
-		{
-			"slug": "pasteup",
-			"name": "Paste-up",
-			"genre": "playful",
-			"posture": "committed",
-			"paper": {
-				"band": "mid",
-				"L": 73,
-				"hue": 70
-			},
-			"display": {
-				"class": "display-condensed",
-				"face": "League Gothic"
-			},
-			"accent": {
-				"band": "chromatic-yellow",
-				"hue": 112
-			},
-			"keywords": [
-				"zine",
-				"fair",
-				"market",
-				"festival",
-				"print fair",
-				"book fair",
-				"exhibitors",
-				"punk",
-				"diy",
-				"collective",
-				"gig",
-				"poster",
-				"workshop",
-				"night market",
-				"flea",
-				"indie",
-				"community",
-				"launch",
-				"loud",
-				"photocopy",
-				"flyer"
-			],
-			"material": "kraft board, a fibre wash, near-black toner, League Gothic capitals over a Newsreader galley, white copy paper on paper lifts, hard ink offsets, one sheet of fluorescent yellow",
-			"photo": "mono con=45",
-			"pictured": "Bento Grid, Stage hero"
-		},
-		{
-			"slug": "piste",
-			"name": "Piste",
-			"genre": "playful",
-			"posture": "committed",
-			"paper": {
-				"band": "light",
-				"L": 98.5,
-				"hue": 260
-			},
-			"display": {
-				"class": "display-condensed",
-				"face": "Barlow Condensed"
-			},
-			"accent": {
-				"band": "cool",
-				"hue": 265
-			},
-			"keywords": [
-				"ski",
-				"mountain",
-				"resort",
-				"snow",
-				"winter",
-				"outdoor",
-				"sport",
-				"trail",
-				"lift",
-				"race",
-				"alpine",
-				"tickets",
-				"season pass",
-				"conditions",
-				"weather",
-				"club",
-				"active",
-				"bold"
-			],
-			"material": "snow-white paper, cold near-black ink, Barlow Condensed 800 caps over Barlow, square edges on 2px ink rules, one cobalt for signal and field",
-			"photo": "natural con=10 vib=15",
-			"pictured": "Morning Report, Poster hero"
-		},
-		{
 			"slug": "ribbon",
 			"name": "Ribbon",
 			"genre": "atmospheric",
@@ -1494,45 +1149,6 @@
 			"material": "warm black paper, warm off-white ink, Switzer 500 with Geist Mono for every measurement, square hairline surfaces, the earth photographed straight down, an orange signal and a sky-blue second",
 			"photo": "natural sat=-20 con=10",
 			"pictured": "Map / Diagram, Ledge hero"
-		},
-		{
-			"slug": "riso",
-			"name": "Riso",
-			"genre": "editorial",
-			"posture": "committed",
-			"paper": {
-				"band": "light",
-				"L": 97,
-				"hue": 90
-			},
-			"display": {
-				"class": "grotesk-heavy",
-				"face": "Cabinet Grotesk"
-			},
-			"accent": {
-				"band": "chromatic-pink",
-				"hue": 356
-			},
-			"keywords": [
-				"risograph",
-				"riso",
-				"print studio",
-				"print fair",
-				"zine",
-				"small press",
-				"poster",
-				"art book",
-				"spot colour",
-				"two colour",
-				"indie press",
-				"diy",
-				"handmade",
-				"prints",
-				"open studio"
-			],
-			"material": "bright uncoated stock and no black, a medium blue drum for every word, a fluorescent pink drum for the fills, purple where they cross, Cabinet Grotesk 800 over Literata, grain, one word a hair out of register",
-			"photo": "duotone ink paper-2 con=14",
-			"pictured": "Job Sheet, Stage hero"
 		},
 		{
 			"slug": "solstice",
@@ -1662,48 +1278,6 @@
 			"pictured": "Photographic, Stage hero"
 		},
 		{
-			"slug": "sport",
-			"name": "Sport",
-			"genre": "editorial",
-			"posture": "restrained",
-			"paper": {
-				"band": "light",
-				"L": 98,
-				"hue": 250
-			},
-			"display": {
-				"class": "display-condensed",
-				"face": "Saira Condensed"
-			},
-			"accent": {
-				"band": "chromatic-volt",
-				"hue": 120
-			},
-			"keywords": [
-				"running",
-				"marathon",
-				"race",
-				"training",
-				"fitness",
-				"gym",
-				"team",
-				"league",
-				"fixtures",
-				"standings",
-				"scoreboard",
-				"athletics",
-				"performance",
-				"splits",
-				"sportswear",
-				"club",
-				"match",
-				"tournament"
-			],
-			"material": "cool concrete paper, blue-black ink, uppercase Saira Condensed over Albert Sans, condensed figures and mono times, two-weight rules, one volt fill",
-			"photo": "duotone ink paper con=20",
-			"pictured": "Stat-Led, Poster hero"
-		},
-		{
 			"slug": "squeeze",
 			"name": "Squeeze",
 			"genre": "playful",
@@ -1743,49 +1317,6 @@
 			],
 			"material": "forest-green paper with real chroma, warm white ink, Gabarito 800 heads and figures over Manrope, soft rounded tiles a step lighter or deeper, fruit photographed bright and close, juicy peach controls",
 			"photo": "natural vib=12 con=4",
-			"pictured": "Bento Grid, Stage hero"
-		},
-		{
-			"slug": "sticker",
-			"name": "Sticker",
-			"genre": "playful",
-			"posture": "full-palette",
-			"paper": {
-				"band": "light",
-				"L": 95.7,
-				"hue": 82
-			},
-			"display": {
-				"class": "display-heavy",
-				"face": "Bowlby One SC"
-			},
-			"accent": {
-				"band": "chromatic-magenta",
-				"hue": 2
-			},
-			"keywords": [
-				"stickers",
-				"print",
-				"merch",
-				"shop",
-				"maker",
-				"creator",
-				"diy",
-				"craft",
-				"vinyl",
-				"packaging",
-				"labels",
-				"small business",
-				"ecommerce",
-				"fun",
-				"loud",
-				"pink",
-				"cut",
-				"ship",
-				"order"
-			],
-			"material": "warm off-white paper, warm black ink, Bowlby One SC over Sofia Sans, white die-cut borders on hard offset shadows, hot pink, lime and ink fills set with type",
-			"photo": "natural vib=15 con=5",
 			"pictured": "Bento Grid, Stage hero"
 		},
 		{
@@ -1954,50 +1485,6 @@
 			"material": "lavender paper or a violet-black night, Outfit set lowercase over Onest, hairline pills, one saturated violet in two strengths, photographs pulled into the violet",
 			"photo": "tint accent con=10",
 			"pictured": "Workbench, Stage hero, in the night colourway"
-		},
-		{
-			"slug": "vellum",
-			"name": "Vellum",
-			"genre": "editorial",
-			"posture": "committed",
-			"paper": {
-				"band": "light",
-				"L": 94,
-				"hue": 82
-			},
-			"display": {
-				"class": "blackletter",
-				"face": "Grenze Gotisch"
-			},
-			"accent": {
-				"band": "cool",
-				"hue": 268
-			},
-			"keywords": [
-				"roastery",
-				"coffee",
-				"bakery",
-				"wine",
-				"cellar",
-				"apothecary",
-				"bookshop",
-				"press",
-				"letterpress",
-				"guild",
-				"heritage",
-				"artisan",
-				"manuscript",
-				"parchment",
-				"edition",
-				"tasting",
-				"vintage",
-				"craft",
-				"old world",
-				"slow"
-			],
-			"material": "parchment paper, a long tan fibre wash on bands, umber ink, Grenze Gotisch heads over Hanken Grotesk with Grenze roman for statements, hairline and double rules, one ultramarine pigment",
-			"photo": "warm con=6",
-			"pictured": "Trade Ledger, Poster hero"
 		},
 		{
 			"slug": "wayfind",
