@@ -28,14 +28,14 @@ One message, even for a five-word prompt. Skip it when the prompt already answer
 First match wins:
 1. The user named a theme/look or a reference -> build that.
 2. The user asked for custom ("bespoke", "no theme", "a world of its own") -> genres.md, section CUSTOM.
-3. Otherwise call `figma_direction` (with the genre and the prompt): it deals three themes that fit and avoid recent ones. Write the prompt in English (keywords match theme topics; in another language the deal falls back to the genre only). Look at them, pick the one whose material can carry the prompt (photos, code, motion-free type), say which and why. A theme is a material (palette balance, type voice, surfaces), not a plan: it never sets what the page contains or in what order. Where it conflicts with the user's words, the user wins.
+3. Otherwise decide the direction yourself from the brief, the genre (genres.md) and the current look of the subject's category (trends.md): palette, two type families, radius, surface. Prefer what a real business in this category would ship and a client would accept; an unusual look needs a reason in the brief. Say which and why in the Picks. A direction is a material (palette balance, type voice, surfaces), not a plan: it never sets what the page contains or in what order. Where it conflicts with the user's words, the user wins.
 - The drawn nav/footer/hero are starting points: swap one that does not fit the subject (a search-led bar for a small shop becomes a plain link row) and say so in the Picks.
 - Fonts missing in figma_fonts: map by class (grotesk-sans -> Inter or the nearest sans from the list, roman-serif -> a serif from the list, mono -> a mono from the list) and say so.
 
 ## 4. The Picks block (post once to the user, before building)
 The run's only recital of decisions and the user's redirect window. Short:
 - Shape: name + job + where the action sits
-- Theme/Look: name, palette in words, type voice, radius
+- Look: name, palette in words, type voice, radius
 - Hero: what it leads with, layout
 - Signature: the one thing a visitor remembers, shown on the first screen
 - Sections: the list in order
@@ -47,9 +47,10 @@ Then build without waiting, unless something blocks. Do not restate the plan twi
 - Hero first: nav + hero only in one figma_create. figma_screenshot it and review cold: is the headline, one sentence and the primary action visible on the first screen (desktop frame ~1440x900)? Does the signature show? Fix before continuing.
 - Then section by section, each with `parent` = the page frame id, one section per call (edits.md). Screenshot after each or every two.
 - One idea per screen, set big. Hero: headline of 7 words or fewer, one sentence of 12 words or fewer, 1-2 actions. 6-9 sections including hero and footer (5 on a thin prompt), about 80 words per screen, about 450 visible words in total. Each section is a piece of the category's own content in a composition with mass (D8a). Fullness comes from scale and pictures, never from more words.
+- Make sections unusual wherever the content allows, as many as fit, each invented from its own content, never a repeated arrangement: composition.md (the idea, no recipe).
 - Show, do not describe: the user's pictures first, then the product built from frames (mockup), then image.query photos. Pictures take at most a third of the page below the hero; never two photo-led sections in a row. No drawn illustration filler, no empty gradient wash, no invented figure.
 - Page invariants: one primary button style, one container width, one column gap below the hero, one radius per nesting level, no more centred heading groups than left-aligned ones.
-- Type and colour: the theme's faces, two families at most (three with one outlier role); body 16+; headings one weight and one colour (no single italic or coloured word inside a roman heading); labels are the body face a step smaller, sentence case, no eyebrow, no tracked capitals as label style.
+- Type and colour: the chosen faces, two families at most (three with one outlier role); body 16+; headings one weight and one colour (no single italic or coloured word inside a roman heading); labels are the body face a step smaller, sentence case, no eyebrow, no tracked capitals as label style.
 - Never: a purple-to-blue gradient, a card inside a card, an emoji as icon, a drawn browser/OS window, middle-dot-joined meta strings, arrows glued to link text, decorative status dots.
 - Missing facts (hours, address, dates): at most two visible slots, named in the close; never made up.
 
@@ -67,6 +68,12 @@ A dashboard, admin, settings, tool: a screen someone works in. No hero, no shape
 
 ## 8. Fast mode
 The prompt says quick, rough, prototype: treat as "go ahead", narration of three lines at most, fewer sections (4-5), skip review rounds beyond one screenshot check. Not relaxed: real facts, contrast, styles, no overflow.
+
+## 8a. Components (before the sweep)
+- Every block that appears 2+ times (cards, list rows, chips, buttons, FAQ items, reviews, steps, stat blocks) becomes ONE main component in the top-level "Components" frame plus instances in the design: figma_componentize on the repeated frames (components.md). The design contains instances only.
+- Build repeats with identical structure so they can be componentized; a last item that drops a divider or a state changes the structure, so give that difference as an override or a variant instead.
+- Interactive elements are Component Sets with states, never loose frames: buttons (Type x State=Default/Hover/Pressed), tabs and segmented switches (Active/Inactive), accordion rows such as FAQ (Closed/Open), toggles, chips, form fields. Name the variants with property pairs ("Type=Primary, State=Hover"), name the text layers ("Label", "Title", "Answer") and use them as overrides, combine_variants with Default first, then set_interactions (hover and press return on release, click is persistent). Replace every loose copy on the page with an instance of the matching variant.
+- After componentizing: check the instances (height "hug" for content-sized blocks, names kept, a different colour variant such as a dark review card is a variant or a local override) and screenshot again.
 
 ## 9. Sweep
 1. figma_screenshot: long pages with `tiles:N` (read each slice), details with `region:[x,y,w,h]`. Look for: clipped or overflowing text, empty areas, misaligned edges, a section that repeats the previous composition, weak hierarchy, text on photos without overlay.

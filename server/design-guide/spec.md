@@ -9,7 +9,7 @@ frame — container/layout node
   padding?: number | number[] — CSS shorthand: [v]=all sides, [v,h]=vertical/horizontal, [t,h,b]=top/horizontal/bottom, [t,r,b,l]=each side
   align?: "start" | "center" | "end" | "space-between" — main axis alignment
   cross?: "start" | "center" | "end" — counter axis alignment
-  wrap?: boolean — horizontal auto-layout wraps children onto new rows (chip clouds, galleries, the Components library)
+  wrap?: boolean — horizontal auto-layout wraps children onto new rows (chip clouds, galleries, the Components library); gap is the gap inside a row, rowGap (default = gap) the gap between rows
   fill?: "#RRGGBB" | "#RRGGBBAA" | "none" | {"color": "#RRGGBB", "opacity": 0..1} | {"gradient":"linear","angle":180,"stops":["#6366F1","#8B5CF6"]} — linear gradient, angle in degrees as in CSS (180 = top to bottom, 90 = left to right), 2+ colors spread evenly (#RRGGBBAA works for fades) | {"gradient":"radial","stops":["#F5B38A","#F5B38A00"],"center"?:[0.5,0.5],"radius"?:0.5} — radial glow, the first color in the center; center in fractions of the node (0..1), radius as a fraction of its size (0.5 reaches the edges)
   clip?: boolean — clip children to the frame bounds (image masks, carousels, cards with full-bleed photos)
   minW?, maxW?: number — width limits in auto-layout (e.g. a paragraph column maxW 640 with w:"fill")

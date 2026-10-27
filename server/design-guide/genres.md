@@ -1,13 +1,13 @@
 Adapted from Hallmark (MIT, Nutlope / Together AI).
 
-GENRES and the CUSTOM route. A genre is a register: palette, type, surface and copy tendencies. A dealt direction (figma_direction) or a locked file system overrides it where they disagree; the user's own words override both.
+GENRES and the CUSTOM route. A genre is a register: palette, type, surface and copy tendencies. A chosen direction or a locked file system overrides it where they disagree; the user's own words override both.
 
 ## Routing (silent, from the prompt)
 - atmospheric: AI tool, generative, music, video, voice, dark, moody, cinematic, nocturnal.
 - modern-minimal: SaaS, enterprise, API, platform, developer tool, infra, B2B, dashboards, billing; also a named brand colour with a restrained prompt.
 - playful: playful, fun, friendly, soft, kids, games, community.
 - editorial: everything else; the default; holds most consumer and family prompts (a consumer prompt without a playful ask stays editorial). Content-led: portfolios, manifestos, type specimens, agencies, magazines, podcasts, brand stories.
-- Once a direction is dealt, its genre wins. Two non-default genres fire: ask one either-or in the single ask message, or on "go ahead" pick and say so.
+- Once a direction is chosen, its genre wins. Two non-default genres fire: ask one either-or in the single ask message, or on "go ahead" pick and say so.
 
 ## atmospheric
 A canvas first, then a tool.
@@ -47,7 +47,7 @@ Alive rather than tidy.
 
 ## CUSTOM route: a world of one's own
 Taken ONLY when the user asks ("custom", "bespoke", "no theme", "derive it", "a world of its own"). Silence deals a direction. Does not apply when the user names a theme (then that theme plus a mood note), when the file has a locked system or a real brand (inherit it), for a single component, or in fast mode.
-- Everything is yours: no dealt theme, no shape list, no palette recipe. The rules of taste/hierarchy/craft (craft.md, taste.md) still bind.
+- Everything is yours: no preset look, no shape list, no palette recipe. The rules of taste/hierarchy/craft (craft.md, taste.md) still bind.
 - Aim for the design a lead brings to a client who rejected every template. Unique is specific: every large decision belongs to THIS client (subject, place, materials, numbers, how its people talk). Put the nearest competitor's name on it; if it still works, keep going. Clean is exact, not empty: a visible system (a few type sizes far apart, one spacing rhythm, aligned edges), nothing without a job, one strong thing per screen. Full is the floor: a whole page (6-9 sections), each built around something worth looking at, never a section that is a heading and a paragraph.
 - Derive it:
   1. Learn the subject: what only this client has: the name and its meaning, the place and how it looks, what it does in one verb, real numbers, rituals, what its world makes or wears, its customers' words.

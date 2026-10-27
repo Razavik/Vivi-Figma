@@ -192,7 +192,11 @@ async function applyUpdate(node: SceneNode, op: EditOp): Promise<void> {
 		if (op.layout === "vertical") f.layoutMode = "VERTICAL";
 		else if (op.layout === "horizontal") f.layoutMode = "HORIZONTAL";
 		else if (op.layout === "none") f.layoutMode = "NONE";
-		if (typeof op.gap === "number") f.itemSpacing = op.gap;
+		if (typeof op.gap === "number") {
+			f.itemSpacing = op.gap;
+			if (f.layoutWrap === "WRAP" && typeof op.rowGap !== "number") f.counterAxisSpacing = op.gap;
+		}
+		if (typeof op.rowGap === "number" && f.layoutWrap === "WRAP") f.counterAxisSpacing = op.rowGap;
 		if (op.padding !== undefined) {
 			const p = paddingOf(op.padding as number | number[]);
 			f.paddingTop = p.t;
@@ -337,6 +341,30 @@ export async function applyEditOp(
 		)) as SceneNode | null;
 		if (!node || node.removed) return note(op.id);
 		if (node.type === "COMPONENT") {
+			// Готовый компонент с "into": выносим в нужный фрейм, на месте остаётся экземпляр.
+			const dest = op.into ? ((await figma.getNodeByIdAsync(String(op.into))) as (BaseNode & ChildrenMixin) | null) : null;
+			if (dest && "children" in dest && node.parent && node.parent !== dest) {
+				const origin = node.parent as BaseNode & ChildrenMixin;
+				const at = origin.children.indexOf(node);
+				const inst = node.createInstance();
+				const inAuto = isAutoParent(origin as Container);
+				origin.insertChild(Math.min(at, origin.children.length), inst);
+				if (inAuto) {
+					inst.layoutSizingHorizontal = node.layoutSizingHorizontal;
+					inst.layoutSizingVertical = node.layoutSizingVertical;
+				}
+				if (node.layoutPositioning === "ABSOLUTE") inst.layoutPositioning = "ABSOLUTE";
+				if (!inAuto || node.layoutPositioning === "ABSOLUTE") {
+					inst.x = node.x;
+					inst.y = node.y;
+				}
+				inst.name = node.name;
+				dest.appendChild(node);
+				touched.add(inst.id);
+				remember(node.id);
+				state.warnings.push(`make_component: ${op.id} вынесен в ${(dest as { name?: string }).name || op.into}, на месте экземпляр ${inst.id}`);
+				return;
+			}
 			state.warnings.push(`make_component: ${op.id} уже компонент`);
 			return;
 		}

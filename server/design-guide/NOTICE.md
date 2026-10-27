@@ -1,1 +1,1 @@
-Parts of this guide (process, taste, typography, layout, imagery, patterns, anatomy, shapes, genres, themes/*) and direction.mjs are adapted from Hallmark by Nutlope / Together AI (https://github.com/nutlope/hallmark), MIT License. Rewritten for Figma: web mechanics removed.
+Parts of this guide (process, taste, typography, layout, imagery, patterns, anatomy, shapes, genres) are adapted from Hallmark by Nutlope / Together AI (https://github.com/nutlope/hallmark), MIT License. Rewritten for Figma: web mechanics removed.

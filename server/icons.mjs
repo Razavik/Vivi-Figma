@@ -126,9 +126,11 @@ export function processDesign(value) {
 		}
 		if (!node || typeof node !== "object") return;
 		if (node.type === "icon") {
+			// size — удобный синоним квадратного w/h
+			const side = typeof node.size === "number" ? node.size : 24;
 			const opts = {
-				w: typeof node.w === "number" ? node.w : 24,
-				h: typeof node.h === "number" ? node.h : typeof node.w === "number" ? node.w : 24,
+				w: typeof node.w === "number" ? node.w : side,
+				h: typeof node.h === "number" ? node.h : typeof node.w === "number" ? node.w : side,
 				color: node.color,
 				strokeWidth: node.strokeWidth,
 			};

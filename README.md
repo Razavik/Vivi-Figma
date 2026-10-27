@@ -104,7 +104,6 @@ claude mcp add vivi-figma --scope user -- node /путь/к/Vivi-Figma/server/mc
 | `figma_edit`   | правки: update (в т.ч. массовые), move, delete, insert, duplicate, rename, reorder, restructure, компоненты |
 | `figma_undo`   | откат последних N записей (хранится 8)                                                           |
 | `figma_guide`  | гайд по спеке и правилам дизайна — агенту стоит прочитать перед первым `figma_create`            |
-| `figma_direction` | для новой страницы: раздаёт 3 темы (палитра, шрифты, материал) и форму страницы, чтобы дизайн не вышел шаблонным; темы и правила вкуса — в `figma_guide` (`process`, `taste`, `typography`, `layout`, `theme:<slug>`…) |
 | `figma_schema` | схемы редких частей (фигуры, группировка)                                                        |
 | `figma_icons`  | поиск имён иконок (Lucide; Phosphor/Tabler/Material — если установлены)                          |
 | `figma_styles` | создать/обновить цветовые и текстовые стили и переменные из токенов (дальше — `style:<имя>` в спеке) |

@@ -477,7 +477,12 @@ async function buildBare(
 					"MIN") as FrameNode["primaryAxisAlignItems"];
 				frame.counterAxisAlignItems = (crossAlign[String(spec.cross)] ||
 					"MIN") as FrameNode["counterAxisAlignItems"];
-				if (spec.wrap === true) frame.layoutWrap = "WRAP";
+				if (spec.wrap === true) {
+					frame.layoutWrap = "WRAP";
+					// зазор между строками: rowGap, иначе равен gap
+					const row = typeof spec.rowGap === "number" ? spec.rowGap : typeof spec.gap === "number" ? spec.gap : 0;
+					frame.counterAxisSpacing = row;
+				}
 			}
 
 			applyFill(
@@ -872,8 +877,13 @@ async function buildBare(
 			applyFill(vec as unknown as SceneNode & GeometryMixin, spec.fill !== undefined ? (spec.fill as Fill) : "#D9D9D9");
 			applyStroke(vec as unknown as SceneNode & GeometryMixin, spec as { stroke?: string; strokeWidth?: number });
 			if (typeof spec.opacity === "number") vec.opacity = spec.opacity;
-			applyPosition(vec, spec, inAuto);
+			const flow = applyPosition(vec, spec, inAuto);
 			if (inAuto && "layoutSizingHorizontal" in vec) applySizing(vec as never, spec, inAuto);
+			// вне потока (layout:"none" или position:"absolute") фигура встаёт по x/y
+			if (!flow) {
+				if (typeof spec.x === "number") vec.x = spec.x;
+				if (typeof spec.y === "number") vec.y = spec.y;
+			}
 			state.nodeCount++;
 			return vec;
 		}

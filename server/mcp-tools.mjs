@@ -107,7 +107,7 @@ export const MCP_TOOLS = {
 	},
 };
 
-const SPEC_BRIEF = `Spec = a tree of nodes, each {"type":...}: frame (layout none|vertical|horizontal, gap, padding [v,h]|[t,r,b,l], align, cross, w/h number|"hug"|"fill", fill "#RRGGBB"|gradient, radius, stroke, strokeWidth, shadow, clip, children), text (text, fontSize, fontWeight regular|medium|semibold|bold, fontFamily, color, align, lineHeight, letterSpacing, textCase, w), rect, ellipse, line, image ({"query":"keywords"} downloads a stock photo; or "path" = a file inside the project; or "data" base64 + "mime"), icon ({"icon":"arrow-right"} Lucide name; "ph:heart" Phosphor if installed), instance ({"component":"<id|name>","overrides":{...}}), shape/bool (vector shapes), and ready blocks: chart (bar/line/area/pie/donut…), table, avatar, logo, qr, barcode, mockup, map — expanded into real layers (editable; change a block's data with update + the block field). Full block fields: figma_guide + figma_schema. Root must be a frame with a numeric w. Auto-layout by default ("hug" + padding), no emoji, real copy. Call figma_guide before the first design — it has the full schema and the design rules. For a NEW page/screen also call figma_direction (themes, page shape) and read figma_guide topics process + taste so it does not look generic.`;
+const SPEC_BRIEF = `Spec = a tree of nodes, each {"type":...}: frame (layout none|vertical|horizontal, gap, padding [v,h]|[t,r,b,l], align, cross, w/h number|"hug"|"fill", fill "#RRGGBB"|gradient, radius, stroke, strokeWidth, shadow, clip, children), text (text, fontSize, fontWeight regular|medium|semibold|bold, fontFamily, color, align, lineHeight, letterSpacing, textCase, w), rect, ellipse, line, image ({"query":"keywords"} downloads a stock photo; or "path" = a file inside the project; or "data" base64 + "mime"), icon ({"icon":"arrow-right"} Lucide name; "ph:heart" Phosphor if installed), instance ({"component":"<id|name>","overrides":{...}}), shape/bool (vector shapes), and ready blocks: chart (bar/line/area/pie/donut…), table, avatar, logo, qr, barcode, mockup, map — expanded into real layers (editable; change a block's data with update + the block field). Full block fields: figma_guide + figma_schema. Root must be a frame with a numeric w. Auto-layout by default ("hug" + padding), no emoji, real copy. Call figma_guide before the first design — it has the full schema and the design rules. For a NEW page/screen also read figma_guide topics process + taste so it does not look generic.`;
 
 const fileField = z.string().optional().describe("Expected name of the open Figma file (from figma_status): the write is refused if another file is open now");
 
@@ -168,7 +168,7 @@ export const MCP_TOOLS_WRITE = {
 	componentize: {
 		write: true,
 		description:
-			"Turn 2+ repeated blocks of the SAME structure (e.g. 4 stat cards, 3 list rows) into one main component plus instances: the first block becomes the component, the others are replaced by instances that keep their own texts and photos. ids must be frames; undo with figma_undo.",
+			"Turn 2+ repeated blocks of the SAME structure (e.g. 4 stat cards, 3 list rows) into one main component plus instances: the main component is moved into the top-level \"Components\" frame (created if missing), and the design keeps ONLY instances that retain their own texts and photos. Run it before you call a design done for every repeated card, row, chip, button, FAQ item, review. ids must be frames; undo with figma_undo.",
 		input: {
 			ids: z.array(z.string()).min(2).max(40).describe("Node ids (or links) of the repeated blocks"),
 			name: z.string().optional().describe('Component name, e.g. "Card / Stat"'),
@@ -198,22 +198,9 @@ export const MCP_TOOLS_WRITE = {
 	guide: {
 		local: true,
 		description:
-			"Design guide for creating designs: spec = node schema (all fields), craft = sizing + design rules, components = reusing components, edits = workflow and the list of edit operations. Taste layer for NEW pages/screens (read it before designing so results do not look generic): process (order of work: ask, shape, direction, hero first, sweep), taste (what makes a design look designed, reflexes to avoid), typography, layout, imagery, patterns (textures), anatomy (sections per job: book, buy, subscribe...), shapes (21 page shapes), genres, and theme:<slug> (a theme card: palette, fonts, material; slugs come from figma_direction). Read spec and edits (and craft for pages) BEFORE the first figma_create. Without topic returns spec + edits.",
+			"Design guide for creating designs: spec = node schema (all fields), craft = sizing + design rules, components = reusing components, edits = workflow and the list of edit operations. Taste layer for NEW pages/screens (read it before designing so results do not look generic): process (order of work: ask, shape, direction, hero first, sweep), taste (what makes a design look designed, reflexes to avoid), typography, layout, imagery, patterns (textures), anatomy (sections per job: book, buy, subscribe...), shapes (21 page shapes), genres, trends (what is current in 2026 and what is fading), composition (make sections unusual: overlaps, absolute placement, shapes; an idea, not a recipe). Read spec and edits (and craft for pages) BEFORE the first figma_create. Without topic returns spec + edits.",
 		input: {
-			topic: z.string().optional().describe("spec | craft | components | edits | all (these four) | process | taste | typography | layout | imagery | patterns | anatomy | shapes | genres | theme:<slug>"),
-		},
-	},
-	direction: {
-		local: true,
-		description:
-			'Pick a visual direction for a NEW design so it does not come out generic. Without "theme": deals 3 candidate themes (palette + fonts + material) for the brief, deterministic per prompt; "reroll":1,2… deals a fresh hand. Choose one, then call again with "theme":"<slug>", "material" (photo = the design has real photos, product = screenshots/mockups, words = text only) and "job" (subscribe|book|visit|attend|buy|try|sign up|hire|join|listen…): returns the full theme card plus a page shape draw (shape, hero, nav, footer, first section, sections to use / avoid) and remembers it so the next designs differ. Write the prompt in English (keywords match theme topics). Skip when the file already has a design system or a brand is given.',
-		input: {
-			prompt: z.string().describe("The brief in a sentence or two (subject, audience, tone)"),
-			genre: z.enum(["atmospheric", "modern-minimal", "playful", "editorial"]).optional().describe("Override the genre guessed from the prompt"),
-			reroll: z.number().int().min(0).max(20).optional().describe("Deal a different hand of 3 themes"),
-			theme: z.string().optional().describe("Chosen theme slug from the deal: returns its card and the page shape draw"),
-			material: z.enum(["photo", "product", "words"]).optional().describe("With theme: what the design can show, default words"),
-			job: z.string().optional().describe("With theme: the one action the page drives"),
+			topic: z.string().optional().describe("spec | craft | components | edits | all (these four) | process | taste | typography | layout | imagery | patterns | anatomy | shapes | genres | trends | composition"),
 		},
 	},
 	icons: {
