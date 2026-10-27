@@ -16,7 +16,7 @@ import {
 	screenshotScale,
 	type AssetNode,
 } from "./mcp-core";
-import { runComponentize, runFocus, runFonts, runStyles } from "./mcp-extra";
+import { runComponentize, runCropShot, runFocus, runFonts, runStyles } from "./mcp-extra";
 import { runCreate, runEdit, runUndo, settleImages } from "./mcp-write";
 import { collectTokens, compactSpec, mergeExtras, toCss, type NodeExtra, type Spec } from "./mcp-describe";
 import { firstSolid } from "./paint";
@@ -230,6 +230,7 @@ export async function runMcpTool(tool: unknown, args: Record<string, unknown>): 
 				if (!a) return { ok: false, error: "нужен id ноды" };
 				const node = await nodeById(a.id);
 				if (!node || !("exportAsync" in node)) return { ok: false, error: `нода ${a.id} не найдена или не экспортируется` };
+				if (Array.isArray(args.region) || args.tiles !== undefined) return await runCropShot(node as SceneNode, args);
 				const scale = screenshotScale(node.width, node.height, args.maxSize, args.scale);
 				if (node.width * scale * node.height * scale > 40_000_000)
 					return {

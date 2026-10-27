@@ -40,12 +40,14 @@ export const MCP_TOOLS = {
 	},
 	screenshot: {
 		description:
-			"PNG picture of a node exactly as it looks in Figma (use it to judge visual design: spacing, colors, hierarchy).",
+			"PNG picture of a node exactly as it looks in Figma (use it to judge visual design: spacing, colors, hierarchy). A tall page is unreadable as one picture: use tiles:N for a sequence of readable slices, or region:[x,y,w,h] to zoom into a part (coordinates from figma_node box).",
 		input: {
 			id: z.string().optional().describe("Figma node id"),
 			ids: idsField(BATCH_LIMITS.screenshot),
 			maxSize: z.number().int().min(128).max(4096).optional().describe("Longest side in px, default 1024"),
-			scale: z.number().min(0.1).max(4).optional().describe("Explicit scale (overrides maxSize). Use 1–2 for small text; for long pages screenshot child blocks one by one"),
+			scale: z.number().min(0.1).max(4).optional().describe("Explicit scale (overrides maxSize). Use 1–2 for small text"),
+			region: z.array(z.number()).length(4).optional().describe("CROP: [x, y, w, h] in the node's own coordinates (px from its top-left) — a zoomed look at one part (a heading, a card, a form). Default scale fits maxSize, up to 2x"),
+			tiles: z.number().int().min(2).max(12).optional().describe("Cut the node into N vertical slices (slightly overlapping) and return N images in order — read a long page in detail instead of one tiny picture"),
 		},
 	},
 	search: {

@@ -3,7 +3,7 @@
 // сборка компонента из повторяющихся блоков.
 import { loadTextFonts } from "./builder";
 import { loadDesignSystem } from "./designsystem";
-import { beginWrite, type WriteResult } from "./mcp-write";
+import { beginWrite, settleImages, type WriteResult } from "./mcp-write";
 import { recordCreated, snapshotFor, undoableRuns } from "./undo";
 
 const HEX = /^#([0-9a-f]{6}|[0-9a-f]{8})$/i;
@@ -235,4 +235,65 @@ export async function runComponentize(args: Record<string, unknown>): Promise<Wr
 	}
 	figma.currentPage.selection = [component];
 	return { ok: true, data: { componentId: component.id, name: component.name, instances, warnings, undoRuns: undoableRuns().length } };
+}
+
+// ── Скриншот части ноды: область (region) или нарезка на куски (tiles) ───────
+// Во временный фрейм-«окно» с clipsContent кладётся копия ноды со сдвигом, окно
+// экспортируется в нужном масштабе и удаляется. Так мелкое читается даже на
+// очень длинной странице, а скриншот не упирается в лимит пикселей.
+const MAX_PIXELS = 40_000_000;
+
+export async function runCropShot(node: SceneNode, args: Record<string, unknown>): Promise<WriteResult> {
+	await settleImages(node);
+	const W = node.width;
+	const H = node.height;
+	const num = (v: unknown, d: number) => (typeof v === "number" && Number.isFinite(v) ? v : d);
+	const maxSize = Math.min(4096, Math.max(128, num(args.maxSize, 1400)));
+	type Win = { x: number; y: number; w: number; h: number; label: string };
+	const wins: Win[] = [];
+	if (Array.isArray(args.region) && args.region.length === 4) {
+		const [rx, ry, rw, rh] = (args.region as unknown[]).map((v) => num(v, 0));
+		const x = Math.max(0, Math.min(W - 1, rx));
+		const y = Math.max(0, Math.min(H - 1, ry));
+		const w = Math.max(8, Math.min(W - x, rw));
+		const h = Math.max(8, Math.min(H - y, rh));
+		wins.push({ x, y, w, h, label: "region" });
+	} else {
+		const tiles = Math.min(12, Math.max(2, Math.round(num(args.tiles, 4))));
+		const overlap = 48;
+		const step = Math.ceil(H / tiles);
+		for (let i = 0; i < tiles; i++) {
+			const y = Math.max(0, i * step - (i ? overlap : 0));
+			const h = Math.min(H - y, step + (i ? overlap : 0) + (i < tiles - 1 ? overlap : 0));
+			if (h > 8) wins.push({ x: 0, y, w: W, h, label: `${i + 1}/${tiles}` });
+		}
+	}
+	const images: { data: string; mimeType: string }[] = [];
+	const parts: Record<string, unknown>[] = [];
+	const clip = figma.createFrame();
+	clip.name = "__vivi_crop";
+	clip.fills = [];
+	clip.clipsContent = true;
+	figma.currentPage.appendChild(clip);
+	const copy = node.clone();
+	try {
+		clip.appendChild(copy);
+		for (const win of wins) {
+			const scale = typeof args.scale === "number" ? Math.min(4, Math.max(0.1, args.scale)) : Math.min(2, Math.max(0.1, maxSize / Math.max(win.w, win.h)));
+			if (win.w * scale * win.h * scale > MAX_PIXELS) return { ok: false, error: "слишком большая область: уменьшите region/scale" };
+			clip.resizeWithoutConstraints(win.w, win.h);
+			copy.x = -win.x;
+			copy.y = -win.y;
+			const bytes = await clip.exportAsync({ format: "PNG", constraint: { type: "SCALE", value: scale } });
+			images.push({ data: figma.base64Encode(bytes), mimeType: "image/png" });
+			parts.push({ part: win.label, region: [Math.round(win.x), Math.round(win.y), Math.round(win.w), Math.round(win.h)], scale: Math.round(scale * 100) / 100, pixels: [Math.round(win.w * scale), Math.round(win.h * scale)] });
+		}
+	} finally {
+		try {
+			clip.remove();
+		} catch {
+			/* уже удалён */
+		}
+	}
+	return { ok: true, data: { id: node.id, name: node.name, size: [Math.round(W), Math.round(H)], images: parts, note: "region = [x, y, w, h] в координатах ноды; куски нарезки идут в порядке сверху вниз с нахлёстом 48px" }, images };
 }

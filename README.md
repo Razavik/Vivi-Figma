@@ -80,7 +80,7 @@ claude mcp add vivi-figma --scope user -- node /путь/к/Vivi-Figma/server/mc
 | `figma_selection`     | структура выделенных нод                                                                    |
 | `figma_outline`       | верхние фреймы страницы                                                                     |
 | `figma_node`          | дерево ноды: размеры, auto-layout, цвета, шрифты, `box:[x,y,w,h]`, свойства векторов        |
-| `figma_screenshot`    | PNG ноды (`scale`, `maxSize` до 4096; предупреждает, если картинка слишком мелкая)          |
+| `figma_screenshot`    | PNG ноды (`scale`, `maxSize` до 4096); `region:[x,y,w,h]` — приблизить часть, `tiles:N` — нарезать длинную страницу на читаемые куски |
 | `figma_search`        | поиск нод по имени или тексту, фильтр по типу                                               |
 | `figma_assets`        | фото и иконки внутри ноды                                                                   |
 | `figma_export`        | сохранить ноды файлами (PNG / JPG / SVG / PDF)                                              |
