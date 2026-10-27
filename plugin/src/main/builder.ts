@@ -283,6 +283,24 @@ export async function applySpans(t: TextNode, spans: unknown): Promise<void> {
 	}
 }
 
+// Начертание в семействе пишется по-разному: «Semi Bold» / «SemiBold» / «DemiBold».
+const STYLE_ALIASES: Record<string, string[]> = {
+	regular: ["regular", "book", "normal", "roman"],
+	semibold: ["semibold", "demibold"],
+	bold: ["bold"],
+	medium: ["medium"],
+};
+let fontList: Font[] | null = null;
+const fontAlias = new Map<string, string>();
+async function sameStyle(family: string, style: string): Promise<string | null> {
+	fontList ||= await figma.listAvailableFontsAsync();
+	const norm = (x: string) => x.toLowerCase().replace(/[\s_-]/g, "");
+	const want = norm(style);
+	const names = STYLE_ALIASES[want] || [want];
+	const own = fontList.filter((f) => f.fontName.family === family).map((f) => f.fontName.style);
+	return own.find((st) => names.includes(norm(st))) || null;
+}
+
 export async function ensureFont(
 	family: string,
 	style: string,
@@ -293,13 +311,24 @@ export async function ensureFont(
 			await figma.loadFontAsync({ family, style });
 			loadedFonts.add(key);
 		} catch {
+			const alt = await sameStyle(family, style).catch(() => null);
+			if (alt && alt !== style) {
+				try {
+					await figma.loadFontAsync({ family, style: alt });
+					loadedFonts.add(key);
+					fontAlias.set(key, alt);
+					return { family, style: alt };
+				} catch {
+					/* дальше — запасной шрифт */
+				}
+			}
 			state.warnings.push(
 				`шрифт ${family} ${style} недоступен — заменён на Inter Regular`,
 			);
 			return ensureFont("Inter", "Regular");
 		}
 	}
-	return { family, style };
+	return { family, style: fontAlias.get(key) || style };
 }
 
 // Резолв компонента для instance: по имени среди построенных в этой

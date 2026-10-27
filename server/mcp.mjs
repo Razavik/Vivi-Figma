@@ -16,6 +16,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import WebSocket from "ws";
 import { BATCH_LIMITS, MCP_TOOLS, timeoutFor } from "./mcp-tools.mjs";
 import { guideText } from "./design-guide.mjs";
+import { routeGenre, dealThemes, drawShape, readTheme, appendLog } from "./direction.mjs";
 import { applyLayoutDefaults, prepareDesign, validateSpec } from "./design-pipeline.mjs";
 import { searchIcons } from "./icons.mjs";
 import { SCHEMA_NAMES, schemaText } from "./schemas.mjs";
@@ -171,6 +172,18 @@ async function guardFile(expected) {
 const text = (value) => ({ content: [{ type: "text", text: typeof value === "string" ? value : JSON.stringify(value) }] });
 const READONLY = process.env.MCP_READONLY === "1";
 
+function directionResult(a) {
+	if (!a.theme) {
+		const genre = a.genre || routeGenre(a.prompt);
+		const deal = dealThemes({ prompt: a.prompt, genre, reroll: a.reroll || 0 });
+		return { genre, candidates: deal, next: 'Pick one and call figma_direction again with theme:"<slug>", material and job (or reroll for another hand). Then read figma_guide process/taste/typography/layout before building.' };
+	}
+	const card = readTheme(a.theme);
+	const draw = drawShape({ material: a.material || "words", job: a.job || "", theme: a.theme });
+	appendLog({ shape: draw.shape, theme: a.theme, hero: draw.hero, nav: draw.nav, footer: draw.footer, prompt: String(a.prompt).slice(0, 200), ts: Date.now() });
+	return { card, draw };
+}
+
 // Инструменты, которые отвечают без плагина.
 function localTool(name, args) {
 	if (name === "schema") {
@@ -181,9 +194,10 @@ function localTool(name, args) {
 	}
 	if (name === "guide") {
 		const body = guideText(args.topic);
-		if (!body) throw new Error("topic: spec | craft | components | edits | all");
+		if (!body) throw new Error("topic: spec | craft | components | edits | all | process | taste | typography | layout | imagery | patterns | anatomy | shapes | genres | theme:<slug>");
 		return text(body);
 	}
+	if (name === "direction") return text(directionResult(args));
 	return text({ query: args.query, icons: searchIcons(args.query) });
 }
 
