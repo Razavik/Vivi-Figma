@@ -7,6 +7,7 @@ import { expandBlocks } from "./blocks.mjs";
 import { expandPatternFills } from "./patterns.mjs";
 import { processDesign } from "./icons.mjs";
 import { resolveImages } from "./images.mjs";
+import { checkSpecFields } from "./spec-fields.mjs";
 
 const NODE_TYPES = new Set(["frame", "text", "rect", "ellipse", "line", "image", "icon", "instance", "ref", "shape", "bool"]);
 const BLOCK_TYPES = new Set(["chart", "table", "avatar", "logo", "qr", "barcode", "mockup", "map"]);
@@ -108,10 +109,11 @@ export async function prepareDesign(value, { env = process.env, roots } = {}) {
 	// Блоки (chart/table/qr/…) → обычные ноды, затем текстуры, файлы проекта, иконки, фото.
 	const blocks = expandBlocks(value);
 	expandPatternFills(value);
+	const fieldNotes = checkSpecFields(value);
 	const local = resolveLocalFiles(value, roots);
 	const icons = processDesign(value);
 	const images = await resolveImages(value, undefined, { max: MAX_IMAGES, enabled: env.MCP_NO_IMAGES !== "1" });
-	const notes = [...local.notes];
+	const notes = [...fieldNotes, ...local.notes];
 	if (icons.unresolved.length) notes.push(`иконки не найдены (будут пустыми): ${icons.unresolved.join(", ")} — подберите имена через figma_icons`);
 	if (icons.emojiStripped) notes.push(`эмодзи удалены из текстов (${icons.emojiStripped}): используйте иконки`);
 	for (const f of images.failed) notes.push(f);

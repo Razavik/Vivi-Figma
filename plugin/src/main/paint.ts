@@ -3,17 +3,27 @@ import type { Fill } from "../spec";
 import { isStyleRef, paintStyleHex, queueFillStyle } from "./designsystem";
 
 export const STYLE_BY_WEIGHT: Record<string, string> = {
+	thin: "Thin",
+	light: "Light",
 	regular: "Regular",
 	medium: "Medium",
 	semibold: "Semi Bold",
 	bold: "Bold",
+	extrabold: "Extra Bold",
+	black: "Black",
 };
 
 export const WEIGHT_FROM_STYLE: Record<string, string> = {
+	Thin: "thin",
+	Light: "light",
 	Regular: "regular",
 	Medium: "medium",
 	"Semi Bold": "semibold",
+	SemiBold: "semibold",
 	Bold: "bold",
+	"Extra Bold": "extrabold",
+	ExtraBold: "extrabold",
+	Black: "black",
 };
 
 export const ALIGN_TO_SPEC: Record<string, string> = {

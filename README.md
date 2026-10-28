@@ -107,6 +107,7 @@ claude mcp add vivi-figma --scope user -- node /путь/к/Vivi-Figma/server/mc
 | `figma_schema` | схемы редких частей (фигуры, группировка)                                                        |
 | `figma_icons`  | поиск имён иконок (Lucide; Phosphor/Tabler/Material — если установлены)                          |
 | `figma_styles` | создать/обновить цветовые и текстовые стили и переменные из токенов (дальше — `style:<имя>` в спеке) |
+| `figma_variants` | набор вариантов одним вызовом (кнопка Default/Hover/Pressed, FAQ Closed/Open, таб Active/Inactive): компоненты в «Components», реакции, замена одиночных копий экземплярами |
 | `figma_componentize` | из повторяющихся блоков одной формы собрать компонент и экземпляры (тексты и фото сохраняются) |
 | `figma_fonts`  | какие шрифты доступны (и какие начертания у семейства)                                          |
 | `figma_focus`  | выделить ноды и показать их в Figma                                                              |

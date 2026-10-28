@@ -177,6 +177,8 @@ async function exportNodes(
 	return { files, skipped };
 }
 
+declare const __BUILD_ID__: string;
+
 export async function runMcpTool(tool: unknown, args: Record<string, unknown>): Promise<McpResult> {
 	if (!isMcpTool(tool)) return { ok: false, error: `неизвестный инструмент: ${String(tool)}` };
 	try {
@@ -194,6 +196,7 @@ export async function runMcpTool(tool: unknown, args: Record<string, unknown>): 
 						selected: sel.slice(0, 20).map((n) => ({ id: n.id, name: n.name, type: n.type })),
 						selectedCount: sel.length,
 						topLevelNodes: figma.currentPage.children.length,
+							build: typeof __BUILD_ID__ === "string" ? __BUILD_ID__ : undefined,
 					},
 				};
 			}

@@ -76,7 +76,7 @@ export type StrokeSide = "top" | "right" | "bottom" | "left" | "all";
 /** Кусок текста со своим стилем — текст ноды = склейка всех span.text. */
 export interface TextSpan {
 	text: string;
-	fontWeight?: "regular" | "medium" | "semibold" | "bold";
+	fontWeight?: "thin" | "light" | "regular" | "medium" | "semibold" | "bold" | "extrabold" | "black";
 	fontFamily?: string;
 	fontSize?: number;
 	color?: Color;
@@ -112,7 +112,7 @@ export interface TextSpec extends BaseSpec {
 	/** Разные стили внутри одного текста; при наличии text можно не задавать. */
 	spans?: TextSpan[];
 	fontSize?: number;
-	fontWeight?: "regular" | "medium" | "semibold" | "bold";
+	fontWeight?: "thin" | "light" | "regular" | "medium" | "semibold" | "bold" | "extrabold" | "black";
 	fontFamily?: string;
 	/** Имя локального текстового стиля файла — шрифт/размер берутся из него. */
 	textStyle?: string;

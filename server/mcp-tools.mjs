@@ -140,6 +140,56 @@ export const MCP_TOOLS_WRITE = {
 			file: fileField,
 		},
 	},
+	variants: {
+		write: true,
+		macro: true,
+		timeoutMs: 120_000,
+		description:
+			'Create a Component Set with states in ONE call (button Default/Hover/Pressed, accordion Closed/Open, tab Active/Inactive, size or type variants): "base" is the frame spec of the component (name its text layers, e.g. "Label"), each variant gives props ({"Type":"Primary","State":"Hover"}), optional "set" (fields of the root to change, e.g. {"fill":"#8F430A"}) and "children" (changes by layer name, e.g. {"Label":{"color":"#fff"}}). Components land in the top-level "Components" frame; hover/press/click interactions are wired automatically (Default to Hover, Default to Pressed, or two states click both ways; "none" or an explicit list to change). "replace" swaps loose copies on the page for instances of a chosen variant with text overrides. Same checks and result as figma_edit; undo with figma_undo. Use it for every interactive element and repeated control (see figma_guide process, components).',
+		input: {
+			name: z.string().describe('Set name, e.g. "Button/Primary"'),
+			base: z.object({ type: z.literal("frame") }).passthrough().describe("Component frame spec; text layers that change should have explicit names"),
+			variants: z
+				.array(
+					z.object({
+						props: z.record(z.string(), z.string()).describe('{"State":"Default"}; same keys in every variant'),
+						set: z.record(z.string(), z.any()).optional().describe("Fields of the root frame to override for this variant"),
+						children: z.record(z.string(), z.record(z.string(), z.any())).optional().describe('Changes by layer name: {"Label":{"color":"#FFFFFF"}}'),
+					}),
+				)
+				.min(2)
+				.max(24),
+			interactions: z
+				.union([
+					z.enum(["auto", "none"]),
+					z.array(
+						z.object({
+							from: z.record(z.string(), z.string()),
+							to: z.record(z.string(), z.string()),
+							trigger: z.enum(["hover", "press", "click"]).optional(),
+							transition: z.enum(["instant", "dissolve", "smart_animate"]).optional(),
+							duration: z.number().optional(),
+						}),
+					),
+				])
+				.optional()
+				.describe('Default "auto"'),
+			replace: z
+				.array(
+					z.object({
+						id: z.string().describe("Node to replace (a loose copy on the page)"),
+						variants: z.record(z.string(), z.string()).optional().describe("Variant to show, default: the first"),
+						overrides: z.record(z.string(), z.string()).optional().describe('Text by layer name: {"Label":"Order now"}'),
+						w: z.union([z.number(), z.enum(["hug", "fill"])]).optional(),
+						h: z.union([z.number(), z.enum(["hug", "fill"])]).optional(),
+						name: z.string().optional(),
+					}),
+				)
+				.max(40)
+				.optional(),
+			file: fileField,
+		},
+	},
 	undo: {
 		write: true,
 		description: "Revert the last N write runs (figma_create / figma_edit calls) made through this plugin: restores changed nodes and removes created ones. Default 1; the last 8 runs are kept.",
@@ -151,7 +201,7 @@ export const MCP_TOOLS_WRITE = {
 	styles: {
 		write: true,
 		description:
-			'Create or update (by name) color styles, text styles and variables from design tokens, so a design system exists before building. Then reference them in specs as "style:<name>" (fill, color, stroke). Not covered by figma_undo.',
+			'Create or update (by name) color styles, text styles and variables from design tokens, so a design system exists before building. Then reference them in specs as "style:<name>" (fill, color, stroke) and "textStyle":"<name>" on text nodes. Not covered by figma_undo.',
 		input: {
 			colors: z.record(z.string(), z.string()).optional().describe('{"Brand/Primary":"#B6F24A","Text/Default":"#F2F5FF"}'),
 			texts: z

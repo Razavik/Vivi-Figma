@@ -285,10 +285,14 @@ export async function applySpans(t: TextNode, spans: unknown): Promise<void> {
 
 // Начертание в семействе пишется по-разному: «Semi Bold» / «SemiBold» / «DemiBold».
 const STYLE_ALIASES: Record<string, string[]> = {
+	thin: ["thin", "hairline"],
+	light: ["light"],
 	regular: ["regular", "book", "normal", "roman"],
+	medium: ["medium"],
 	semibold: ["semibold", "demibold"],
 	bold: ["bold"],
-	medium: ["medium"],
+	extrabold: ["extrabold", "ultrabold", "heavy"],
+	black: ["black", "heavy"],
 };
 let fontList: Font[] | null = null;
 const fontAlias = new Map<string, string>();

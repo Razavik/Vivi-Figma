@@ -32,6 +32,7 @@ import { bulkPlan } from "./bulk-core";
 import { searchIn, type SearchNode } from "./search";
 import { moveProblem, planTree, type NodeLike, type PlanNode } from "./restructure-core";
 import { annotateNode, clearAnnotations } from "./extras";
+import { ensureLibrary } from "./library";
 
 // Слой внутри экземпляра нельзя ни удалить, ни переименовать, ни вставить в
 // него — правка уходит в тот же слой главного компонента (все копии следуют).
@@ -244,6 +245,8 @@ const REF_KEYS = new Set(["id", "parent", "component", "target"]);
 
 // "$имя" → реальный id через aliases; нет алиаса — предупреждение и как есть.
 function deref(ref: string, aliases: Map<string, string>): string {
+	// "$components" — фрейм-библиотека «Components» (создаётся при первом обращении)
+	if (ref === "$components" && !aliases.has("components")) return ensureLibrary().id;
 	const real = aliases.get(ref.slice(1));
 	if (!real)
 		state.warnings.push(
@@ -576,6 +579,52 @@ export async function applyEditOp(
 			touched.add(child.id);
 			remember(child.id);
 		}
+	} else if (op.op === "swap") {
+		// Заменить узел экземпляром компонента на том же месте: тот же родитель и индекс,
+		// размеры и позиция сохраняются (w/h в операции переопределяют). Нужно, чтобы
+		// заменять одиночные копии (кнопка, строка FAQ) вариантом набора.
+		const old = (await figma.getNodeByIdAsync(String(op.id))) as SceneNode | null;
+		if (!old || old.removed) return note(op.id);
+		const parent = old.parent as (BaseNode & ChildrenMixin) | null;
+		if (!parent || !("children" in parent)) return note(op.id);
+		const index = parent.children.indexOf(old);
+		const inAuto = isAutoParent(parent as Container);
+		const inst = await buildNode(
+			{
+				type: "instance",
+				component: op.component,
+				overrides: op.overrides,
+				variants: op.variants,
+				...(op.w !== undefined ? { w: op.w } : {}),
+				...(op.h !== undefined ? { h: op.h } : {}),
+			} as AnySpec,
+			parent as Container,
+			inAuto,
+		);
+		if (!inst) {
+			state.warnings.push(`swap: не удалось создать экземпляр вместо ${op.id}`);
+			return;
+		}
+		parent.insertChild(Math.min(index, parent.children.length), inst);
+		try {
+			if (inAuto && "layoutSizingHorizontal" in old && "layoutSizingHorizontal" in inst) {
+				if (op.w === undefined && old.layoutSizingHorizontal === "FILL") inst.layoutSizingHorizontal = "FILL";
+				if (op.h === undefined && old.layoutSizingVertical === "FILL") inst.layoutSizingVertical = "FILL";
+			}
+			if ("layoutPositioning" in old && old.layoutPositioning === "ABSOLUTE") (inst as FrameNode).layoutPositioning = "ABSOLUTE";
+			if (!inAuto || ("layoutPositioning" in old && old.layoutPositioning === "ABSOLUTE")) {
+				inst.x = old.x;
+				inst.y = old.y;
+			}
+			if ("rotation" in old && old.rotation && "rotation" in inst) (inst as FrameNode).rotation = (old as FrameNode).rotation;
+		} catch (err) {
+			state.warnings.push(`swap: размер/позиция — ${String(err)}`);
+		}
+		inst.name = typeof op.name === "string" && op.name ? op.name : old.name;
+		if (old.parent && old.parent.type !== "PAGE") touched.add(old.parent.id);
+		old.remove();
+		touched.add(inst.id);
+		remember(inst.id);
 	} else if (op.op === "restructure") {
 		// Целевое дерево: существующие ноды (только id) переносятся как есть,
 		// узлы с type — новые контейнеры. Проверки идут до первого изменения.

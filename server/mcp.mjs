@@ -17,6 +17,7 @@ import WebSocket from "ws";
 import { BATCH_LIMITS, MCP_TOOLS, timeoutFor } from "./mcp-tools.mjs";
 import { guideText } from "./design-guide.mjs";
 import { applyLayoutDefaults, prepareDesign, validateSpec } from "./design-pipeline.mjs";
+import { variantEdits } from "./variants-macro.mjs";
 import { searchIcons } from "./icons.mjs";
 import { SCHEMA_NAMES, schemaText } from "./schemas.mjs";
 import { exportRoots, exportTarget, projectRoot, resolveArgs, saveExported } from "./mcp-export.mjs";
@@ -159,8 +160,29 @@ const server = new McpServer({ name: "vivi-figma", version: "0.1.0" });
 // Защита от записи не в тот файл: имя открытого файла запоминается; если оно
 // сменилось с прошлого вызова (или не совпало с аргументом file) — отказ один раз.
 let lastFile = null;
+
+// Сборка плагина, которая едет с этим пакетом (plugin/dist/build-id.txt). Если плагин в Figma собран
+// из другой, агент увидит pluginOutdated и подсказку переоткрыть плагин (иначе правки сервера «не работают»).
+let EXPECTED_BUILD = null;
+try {
+	EXPECTED_BUILD = readFileSync(join(SERVER_DIR, "..", "plugin", "dist", "build-id.txt"), "utf-8").trim() || null;
+} catch {
+	/* плагин ставили вручную — сверять нечего */
+}
+let outdatedNote = null;
+let outdatedShown = false;
+function checkBuild(st) {
+	if (!EXPECTED_BUILD || !st || typeof st !== "object") return;
+	outdatedNote =
+		st.build === EXPECTED_BUILD
+			? null
+			: "плагин в Figma собран из другой версии, чем сервер: закройте плагин Vivi и откройте его заново (Plugins → Development), иначе часть возможностей не заработает";
+}
+
 async function guardFile(expected) {
-	const now = (await call("status", {})).data?.file ?? null;
+	const st = (await call("status", {})).data;
+	checkBuild(st);
+	const now = st?.file ?? null;
 	const prev = lastFile;
 	lastFile = now;
 	if (expected && now && expected !== now) throw new Error(`открыт файл «${now}», а ожидался «${expected}» — запись не выполнена`);
@@ -187,6 +209,7 @@ function localTool(name, args) {
 	return text({ query: args.query, icons: searchIcons(args.query) });
 }
 
+const handlers = {};
 for (const [name, def] of Object.entries(MCP_TOOLS)) {
 	if (READONLY && def.write) continue;
 	server.registerTool(
@@ -198,8 +221,13 @@ for (const [name, def] of Object.entries(MCP_TOOLS)) {
 				? { readOnlyHint: false, destructiveHint: name !== "create", idempotentHint: false, openWorldHint: name === "create" }
 				: { readOnlyHint: true, openWorldHint: false },
 		},
-		async (args) => {
+		(handlers[name] = async (args) => {
 			try {
+				// макро-инструмент (figma_variants) раскрывается в операции figma_edit
+				if (def.macro) {
+					const { file, ...rest } = args || {};
+					return await handlers.edit({ edits: variantEdits(rest), ...(file ? { file } : {}) });
+				}
 				if (def.local) return localTool(name, args || {});
 				// Ссылки Figma и id вида 12-345 → "12:345"; ссылка на другой файл — отказ.
 				const resolved = resolveArgs(args || {});
@@ -261,7 +289,13 @@ for (const [name, def] of Object.entries(MCP_TOOLS)) {
 						],
 					};
 				}
-				const data = prepared && res.data && typeof res.data === "object" ? { ...res.data, prepared } : res.data;
+				if (name === "status") checkBuild(res.data);
+				let data = prepared && res.data && typeof res.data === "object" ? { ...res.data, prepared } : res.data;
+				// статус сообщает о старом плагине всегда, запись — один раз за сессию
+				if (outdatedNote && data && typeof data === "object" && (name === "status" || (def.write && !outdatedShown))) {
+					data = { ...data, pluginOutdated: true, pluginHint: outdatedNote };
+					if (def.write) outdatedShown = true;
+				}
 				const content = [{ type: "text", text: JSON.stringify(data ?? null) }];
 				for (const img of res.images || [])
 					if (img && typeof img.data === "string")
@@ -270,7 +304,7 @@ for (const [name, def] of Object.entries(MCP_TOOLS)) {
 			} catch (err) {
 				return { isError: true, content: [{ type: "text", text: String(err?.message || err) }] };
 			}
-		},
+		}),
 	);
 }
 

@@ -34,7 +34,8 @@ text — text node
   text: string (may contain \n)
   spans?: [{"text":"...", fontWeight?, fontFamily?, fontSize?, color?, textDecoration?, link?: "https://..."}] — several styles inside ONE text (a bold or accent word, an inline link, "$29" big + " / month" muted). The node text = all span texts joined in order (then "text" may be omitted); node-level fontSize/fontWeight/color are the base, a span sets only what differs.
   fontSize?: number (default 16)
-  fontWeight?: "regular" | "medium" | "semibold" | "bold"
+  fontWeight?: "thin" | "light" | "regular" | "medium" | "semibold" | "bold" | "extrabold" | "black" (the nearest style of the family is used; check figma_fonts for what the family has)
+  textStyle?: "Heading/H1" — name of a local text style (create them with figma_styles texts): font, size and line height come from the style
   fontFamily?: string (default "Inter")
   color?: "#RRGGBB"
   align?: "left" | "center" | "right"
