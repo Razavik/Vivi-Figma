@@ -5,7 +5,7 @@
 import { z } from "zod";
 
 // Пакетный режим: вместо одного id можно передать несколько — один вызов вместо серии.
-export const BATCH_LIMITS = { node: 10, screenshot: 8, tokens: 10, assets: 10 };
+export const BATCH_LIMITS = { node: 25, screenshot: 8, tokens: 10, assets: 10 };
 const idsField = (max) =>
 	z.array(z.string()).min(1).max(max).optional().describe(`Several nodes in ONE call (up to ${max}) instead of id: the result is a list, one entry per node, in the same order`);
 
@@ -48,6 +48,16 @@ export const MCP_TOOLS = {
 			scale: z.number().min(0.1).max(4).optional().describe("Explicit scale (overrides maxSize). Use 1–2 for small text"),
 			region: z.array(z.number()).length(4).optional().describe("CROP: [x, y, w, h] in the node's own coordinates (px from its top-left) — a zoomed look at one part (a heading, a card, a form). Default scale fits maxSize, up to 2x"),
 			tiles: z.number().int().min(2).max(12).optional().describe("Cut the node into N vertical slices (slightly overlapping) and return N images in order — read a long page in detail instead of one tiny picture"),
+		},
+	},
+	review: {
+		timeoutMs: 120_000,
+		description:
+			"ONE-CALL REVIEW of a node (a page or a section): objective lint issues (overflow, contrast, text under 12px, off-grid spacing, default names, tap targets, placeholder text) plus the node cut into readable slices (images, in order). Contrast issues on text over a photo carry onPhoto:true: the estimate can be wrong there, judge by the slice. Run it after a build and before calling a design done; then fix what is real in one figma_edit batch.",
+		input: {
+			id: z.string().describe("Figma node id of the page frame or section"),
+			tiles: z.number().int().min(2).max(12).optional().describe("Number of slices, default by height (about one per 900 px)"),
+			maxSize: z.number().int().min(128).max(4096).optional().describe("Longest side of a slice in px"),
 		},
 	},
 	search: {
@@ -127,6 +137,7 @@ export const MCP_TOOLS_WRITE = {
 			x: z.number().optional().describe("Explicit position on the page (needs y too)"),
 			y: z.number().optional(),
 			gap: z.number().min(0).max(2000).optional().describe("Space to the neighbour, default 120"),
+			quiet: z.boolean().optional().describe("true: no node trees or screenshot in the reply (applied count, warnings, lint issues and ids only) — for long builds in several calls"),
 			file: fileField,
 		},
 	},
@@ -134,9 +145,10 @@ export const MCP_TOOLS_WRITE = {
 		write: true,
 		timeoutMs: 120_000,
 		description:
-			'Change existing nodes with a list of operations run in order: update (fields: name, fill, stroke, radius, shadow, text, fontSize, color, w, h, layout, gap, padding, align…; bulk via "ids":[..] or "match":{in,name,text,type}), move, delete, insert (a full node spec into a parent), duplicate, rename, reorder, restructure (regroup nodes by a target tree), group/ungroup, make_component, combine_variants, rebuild. Ids come from figma_node/figma_outline. An op that creates a node may carry "as":"name" — later ops refer to it as "$name" ("$page" = current page). Returns warnings (failed ops), lint issues, changed trees and a screenshot. See figma_guide for the full op list.',
+			'Change existing nodes with a list of operations run in order: update (fields: name, fill, stroke, radius, shadow, text, fontSize, color, w, h, layout, gap, padding, align…; bulk via "ids":[..] or "match":{in,name,nameExact,text,type}; nameExact:true matches the whole name, not a part), move, delete, insert (a full node spec into a parent), duplicate, rename, reorder, restructure (regroup nodes by a target tree), group/ungroup, make_component, combine_variants, rebuild. Ids come from figma_node/figma_outline. An op that creates a node may carry "as":"name" — later ops refer to it as "$name" ("$page" = current page). Returns warnings (failed ops), lint issues, changed trees and a screenshot. See figma_guide for the full op list.',
 		input: {
 			edits: z.array(z.object({ op: z.string() }).passthrough()).min(1).max(200).describe("Operations, e.g. [{op:'update',id:'12:3',fill:'#111111'}]"),
+			quiet: z.boolean().optional().describe("true: no node trees or screenshot in the reply (applied count, warnings, lint issues and ids only) — for long builds in several calls"),
 			file: fileField,
 		},
 	},
@@ -187,6 +199,7 @@ export const MCP_TOOLS_WRITE = {
 				)
 				.max(40)
 				.optional(),
+			quiet: z.boolean().optional().describe("true: no node trees or screenshot in the reply (applied count, warnings, lint issues and ids only) — for long builds in several calls"),
 			file: fileField,
 		},
 	},

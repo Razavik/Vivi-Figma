@@ -387,8 +387,9 @@ export function imageExtrasOf(
 
 export function applyRadius(
 	node: CornerMixin & RectangleCornerMixin,
-	radius: number | number[] | undefined,
+	radius: number | number[] | string | undefined,
 ): void {
+	if (typeof radius === "string") radius = cssNumbers(radius);
 	if (typeof radius === "number") {
 		node.cornerRadius = radius;
 	} else if (Array.isArray(radius)) {
@@ -461,7 +462,14 @@ export function blursOf(effects: readonly Effect[]): Record<string, number> {
 
 // Padding как в CSS: 1 значение — все стороны, 2 — [вертикально,
 // горизонтально], 3 — [верх, горизонтально, низ], 4 — [в, п, н, л].
-export function paddingOf(p: number | number[] | undefined) {
+// "16px 32px" / "24 0" из строки — модель иногда пишет CSS-шортхенд строкой,
+// раньше такой padding молча превращался в нули.
+export function cssNumbers(v: string): number[] {
+	return (v.match(/-?\d*\.?\d+/g) || []).map(Number).filter((n) => Number.isFinite(n));
+}
+
+export function paddingOf(p: number | number[] | string | undefined) {
+	if (typeof p === "string") p = cssNumbers(p);
 	if (typeof p === "number") return { t: p, r: p, b: p, l: p };
 	if (Array.isArray(p)) {
 		const t = p[0] ?? 0;

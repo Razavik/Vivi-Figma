@@ -6,6 +6,7 @@ import { ensureLibrary, liftToLibrary } from "./library";
 import { loadDesignSystem } from "./designsystem";
 import { beginWrite, settleImages, type WriteResult } from "./mcp-write";
 import { recordCreated, snapshotFor, undoableRuns } from "./undo";
+import { lint, type Issue, type LintNode } from "./lint";
 
 const HEX = /^#([0-9a-f]{6}|[0-9a-f]{8})$/i;
 const WEIGHT_STYLE: Record<string, string[]> = {
@@ -179,18 +180,32 @@ export async function runComponentize(args: Record<string, unknown>): Promise<Wr
 	const ids = Array.isArray(args.ids) ? (args.ids as unknown[]) : [];
 	if (ids.length < 2) return { ok: false, error: "ids: нужно минимум 2 одинаковых по структуре блока" };
 	const nodes: SceneNode[] = [];
+	const notFrames: SceneNode[] = [];
 	for (const id of ids.slice(0, 40)) {
 		const n = await nodeOf(id);
 		if (!n) return { ok: false, error: `нода ${String(id)} не найдена` };
-		if (n.type !== "FRAME") return { ok: false, error: `${n.name}: компонентом можно сделать только frame, а это ${n.type}` };
+		// не-фреймы (подпись, линия, фигура среди блоков) пропускаем, а не отменяем вызов
+		if (n.type !== "FRAME") {
+			notFrames.push(n);
+			continue;
+		}
 		nodes.push(n);
 	}
-	const sig = shape(nodes[0]);
-	for (const n of nodes) if (shape(n) !== sig) return { ok: false, error: `«${n.name}» (${n.id}) устроен иначе, чем «${nodes[0].name}»: компонент возможен только для блоков одной структуры` };
+	// Блоки другой структуры не рушат вызов: остаются как есть и попадают в skipped.
+	// Главным берём блок, на который похожа большая часть (самая частая форма).
+	const forms = new Map<string, SceneNode[]>();
+	for (const n of nodes) forms.set(shape(n), [...(forms.get(shape(n)) ?? []), n]);
+	const group = [...forms.values()].sort((a, b) => b.length - a.length)[0];
+	if (!group || group.length < 2) return { ok: false, error: "нет двух блоков одной структуры: компонент возможен только для одинаково устроенных блоков (слои, их число и типы)" };
+	const skipped = [...nodes.filter((n) => !group.includes(n)), ...notFrames].map((n) => ({ id: n.id, name: n.name }));
+	nodes.splice(0, nodes.length, ...group);
 	await beginWrite(`componentize: ${nodes[0].name}`);
 	await snapshotFor(nodes.map((n) => n.id));
 	const warnings: string[] = [];
+	if (skipped.length) warnings.push(`пропущено ${skipped.length} блок(ов) другой структуры (оставлены как есть): ${skipped.map((x) => x.name + " " + x.id).join(", ")}`);
 	const first = nodes[0];
+	const firstName = first.name;
+	const firstId = first.id;
 	const component = figma.createComponentFromNode(first);
 	if (typeof args.name === "string" && args.name.trim()) component.name = args.name.trim();
 	recordCreated(component.id);
@@ -224,8 +239,21 @@ export async function runComponentize(args: Record<string, unknown>): Promise<Wr
 				} else if (hasImage(a) && "fills" in b) {
 					b.fills = (a as GeometryMixin).fills as Paint[];
 				}
+				// различия вида (цвет текста и фона, обводка) переносим локальной правкой экземпляра
+				if ("fills" in a && "fills" in b && !hasImage(a) && JSON.stringify(a.fills) !== JSON.stringify(b.fills)) b.fills = a.fills as Paint[];
+				if ("strokes" in a && "strokes" in b && JSON.stringify(a.strokes) !== JSON.stringify(b.strokes)) b.strokes = a.strokes as Paint[];
 			}
 			if ("fills" in old && "fills" in inst && JSON.stringify(old.fills) !== JSON.stringify(inst.fills)) inst.fills = old.fills as Paint[];
+			if ("strokes" in old && "strokes" in inst && JSON.stringify(old.strokes) !== JSON.stringify(inst.strokes)) inst.strokes = old.strokes as Paint[];
+			if ("strokeBottomWeight" in old && "strokeBottomWeight" in inst) {
+				for (const k of ["strokeTopWeight", "strokeRightWeight", "strokeBottomWeight", "strokeLeftWeight"] as const) if (old[k] !== inst[k]) inst[k] = old[k];
+			}
+			// фиксированный размер блока сохраняем (hug/fill копируются выше)
+			if ("layoutSizingHorizontal" in old && "layoutSizingHorizontal" in inst) {
+				const w = old.layoutSizingHorizontal === "FIXED" ? old.width : inst.width;
+				const h = old.layoutSizingVertical === "FIXED" ? old.height : inst.height;
+				if (old.layoutSizingHorizontal === "FIXED" || old.layoutSizingVertical === "FIXED") inst.resize(w, h);
+			}
 			inst.name = old.name;
 			old.remove();
 			recordCreated(inst.id);
@@ -235,17 +263,55 @@ export async function runComponentize(args: Record<string, unknown>): Promise<Wr
 		}
 	}
 	// Главный компонент — в «Components», на месте первого блока остаётся экземпляр.
+	// откат удаляет только созданную в этом прогоне библиотеку, а не общую с прошлых прогонов
+	const hadLib = figma.currentPage.children.some((n) => n.type === "FRAME" && n.name === "Components");
 	const lib = ensureLibrary();
-	recordCreated(lib.id);
-	const firstName = first.name;
+	if (!hadLib) recordCreated(lib.id);
 	const firstInstance = liftToLibrary(component, lib);
 	if (firstInstance) {
 		firstInstance.name = firstName;
 		recordCreated(firstInstance.id);
-		instances.unshift({ id: firstInstance.id, replaced: first.id });
+		instances.unshift({ id: firstInstance.id, replaced: firstId });
 	} else warnings.push("главный компонент остался на месте: не удалось вынести в «Components»");
 	figma.currentPage.selection = [component];
-	return { ok: true, data: { componentId: component.id, libraryId: lib.id, name: component.name, instances, warnings, undoRuns: undoableRuns().length } };
+	return { ok: true, data: { componentId: component.id, libraryId: lib.id, name: component.name, instances, skipped, warnings, undoRuns: undoableRuns().length } };
+}
+
+// ── figma_review: проверки и обзор страницы одним вызовом ──────────────────
+// Объективные замечания (lint) + нарезка на куски. Контраст текста над фото
+// помечается: проверка считает цвет под текстом по заливке фрейма и может ошибаться.
+function onPhoto(n: BaseNode | null): boolean {
+	for (let p = n; p && p.type !== "PAGE"; p = p.parent) if (hasImage(p as SceneNode)) return true;
+	return false;
+}
+
+export async function runReview(node: SceneNode, args: Record<string, unknown>): Promise<WriteResult> {
+	let issues: Issue[] = [];
+	try {
+		issues = lint(node as unknown as LintNode);
+	} catch {
+		/* проверка не должна ломать обзор */
+	}
+	const hints = issues.filter((i) => i.kind === "repeat" || i.kind === "icon-sets");
+	const real: (Issue & { onPhoto?: boolean })[] = [];
+	for (const i of issues.filter((x) => !hints.includes(x))) {
+		const item: Issue & { onPhoto?: boolean } = { ...i };
+		if (i.kind === "contrast") {
+			const n = await figma.getNodeByIdAsync(i.id);
+			if (onPhoto(n)) {
+				item.onPhoto = true;
+				item.detail += " (текст над фото: проверьте на скриншоте, оценка может быть неверной)";
+			}
+		}
+		real.push(item);
+	}
+	const shots = await runCropShot(node, { tiles: typeof args.tiles === "number" ? args.tiles : Math.min(8, Math.max(2, Math.round(node.height / 900))), maxSize: args.maxSize });
+	if (!shots.ok) return shots;
+	return {
+		ok: true,
+		data: { id: node.id, name: node.name, issues: real.slice(0, 80), hints: hints.slice(0, 20), issueCount: real.length, ...(shots.data as object) },
+		images: shots.images,
+	};
 }
 
 // ── Скриншот части ноды: область (region) или нарезка на куски (tiles) ───────

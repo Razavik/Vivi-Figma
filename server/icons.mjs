@@ -128,10 +128,13 @@ export function processDesign(value) {
 		if (node.type === "icon") {
 			// size — удобный синоним квадратного w/h
 			const side = typeof node.size === "number" ? node.size : 24;
+			// цвет стиля ("style:Brand/Primary") знает только плагин: в разметке чёрный, плагин перекрасит
+			const styleColor = typeof node.color === "string" && node.color.startsWith("style:");
+			if (styleColor) node.recolor = node.color;
 			const opts = {
 				w: typeof node.w === "number" ? node.w : side,
 				h: typeof node.h === "number" ? node.h : typeof node.w === "number" ? node.w : side,
-				color: node.color,
+				color: styleColor ? undefined : node.color,
 				strokeWidth: node.strokeWidth,
 			};
 			if (typeof node.icon === "string" && node.icon.trim()) {

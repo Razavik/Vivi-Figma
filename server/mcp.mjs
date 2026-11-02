@@ -225,8 +225,8 @@ for (const [name, def] of Object.entries(MCP_TOOLS)) {
 			try {
 				// макро-инструмент (figma_variants) раскрывается в операции figma_edit
 				if (def.macro) {
-					const { file, ...rest } = args || {};
-					return await handlers.edit({ edits: variantEdits(rest), ...(file ? { file } : {}) });
+					const { file, quiet, ...rest } = args || {};
+					return await handlers.edit({ edits: variantEdits(rest), ...(file ? { file } : {}), ...(quiet ? { quiet } : {}) });
 				}
 				if (def.local) return localTool(name, args || {});
 				// Ссылки Figma и id вида 12-345 → "12:345"; ссылка на другой файл — отказ.
@@ -276,6 +276,8 @@ for (const [name, def] of Object.entries(MCP_TOOLS)) {
 					return { content };
 				}
 				if (limit && !resolved.args.id) throw new Error("нужен id или ids");
+				const quiet = resolved.args.quiet === true && def.write;
+				if (quiet) delete resolved.args.quiet;
 				const res = await call(name, resolved.args);
 				if (name === "status" && res.data?.file) lastFile = res.data.file;
 				if (isExport && target) {
@@ -296,8 +298,12 @@ for (const [name, def] of Object.entries(MCP_TOOLS)) {
 					data = { ...data, pluginOutdated: true, pluginHint: outdatedNote };
 					if (def.write) outdatedShown = true;
 				}
+				if (quiet && data && typeof data === "object") {
+					const { tree: _t, changed, ...slim } = data;
+					data = { ...slim, ...(Array.isArray(changed) ? { changedIds: changed.map((c) => c.id) } : {}) };
+				}
 				const content = [{ type: "text", text: JSON.stringify(data ?? null) }];
-				for (const img of res.images || [])
+				for (const img of quiet ? [] : res.images || [])
 					if (img && typeof img.data === "string")
 						content.push({ type: "image", data: img.data, mimeType: img.mimeType || "image/png" });
 				return { content };

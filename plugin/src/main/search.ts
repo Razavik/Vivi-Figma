@@ -26,6 +26,8 @@ export interface SearchOptions {
 	text?: boolean;
 	// Только этот тип: TEXT, FRAME, COMPONENT, INSTANCE, RECTANGLE…
 	type?: string;
+	// Имя целиком (без учёта регистра), а не подстрока: «Hero» не находит «Hero text».
+	exact?: boolean;
 	limit?: number;
 	// Пропустить первые N совпадений — следующая страница большого результата.
 	offset?: number;
@@ -53,7 +55,7 @@ export function searchIn(root: SearchNode, opts: SearchOptions): SearchResult {
 		if (n.visible === false) return false;
 		if (type && n.type !== type) return false;
 		if (any) return true;
-		if (n.name.toLowerCase().includes(q)) return true;
+		if (opts.exact ? n.name.trim().toLowerCase() === q : n.name.toLowerCase().includes(q)) return true;
 		return !!opts.text && n.type === "TEXT" && (n.characters || "").toLowerCase().includes(q);
 	});
 	const results = matches.slice(offset, offset + limit).map((n) => {

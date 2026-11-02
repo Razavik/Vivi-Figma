@@ -3,7 +3,7 @@ import { applyExtras } from "./extras";
 import type { Fill } from "../spec";
 import type { AnySpec, Container } from "./canvas-state";
 import { state } from "./canvas-state";
-import { queueFillStyle, textStyleOf } from "./designsystem";
+import { paintStyleHex, queueFillStyle, textStyleOf } from "./designsystem";
 import {
 	STYLE_BY_WEIGHT,
 	applyFill,
@@ -947,6 +947,19 @@ async function buildBare(
 					icon.name =
 						typeof spec.name === "string" ? spec.name : "Icon";
 					parent.appendChild(icon);
+					const tint = typeof spec.recolor === "string" ? paintStyleHex(spec.recolor) : undefined;
+					if (tint) {
+						const paint = (ps: readonly Paint[] | PluginAPI["mixed"]): Paint[] | null =>
+							Array.isArray(ps) && ps.length ? (ps as readonly Paint[]).map((p) => (p.type === "SOLID" ? { ...p, color: hexToRgba(tint).color } : p)) : null;
+						for (const v of icon.findAll((n) => "fills" in n || "strokes" in n) as (SceneNode & GeometryMixin)[]) {
+							const f = paint(v.fills);
+							const s = paint(v.strokes);
+							if (f) v.fills = f;
+							if (s) v.strokes = s;
+						}
+					} else if (typeof spec.recolor === "string") {
+						state.warnings.push(`icon: стиль «${spec.recolor}» не найден — оставлен чёрный`);
+					}
 					if (typeof spec.opacity === "number")
 						icon.opacity = spec.opacity;
 					applySizing(icon, spec, applyPosition(icon, spec, inAuto));

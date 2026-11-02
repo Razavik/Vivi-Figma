@@ -201,6 +201,36 @@ export async function searchPhotos(query, count = 6) {
 	return [];
 }
 
+// Запрос, затем его укороченные варианты: первые 3 слова, первые 2, последнее слово.
+export function queryVariants(query) {
+	const words = String(query).trim().split(/[ \t\r\n]+/).filter(Boolean);
+	const out = [words.join(" ")];
+	for (const v of [words.slice(0, 3), words.slice(0, 2), words.slice(-1)]) {
+		const t = v.join(" ");
+		if (t && !out.includes(t)) out.push(t);
+	}
+	return out;
+}
+
+// Кэш найденного (запрос + номер): повторная сборка и replace не ходят в сеть заново.
+const stockCache = new Map();
+async function fromStocks(query, i) {
+	const key = `${query.toLowerCase()}|${i}`;
+	if (stockCache.has(key)) return stockCache.get(key);
+	const safeCall = (fn) => fn.catch(() => null);
+	const img =
+		(await safeCall(pexels(query, i))) ??
+		(await safeCall(unsplash(query, i))) ??
+		(await safeCall(pixabay(query, i))) ??
+		(await safeCall(openverse(query, i))) ??
+		null;
+	if (img) {
+		stockCache.set(key, img);
+		if (stockCache.size > 60) stockCache.delete(stockCache.keys().next().value);
+	}
+	return img;
+}
+
 // Обходит спеку/правки: image-ноды с "query" или "photo" (id кандидата
 // из инструмента photos) получают data (base64) и mime; то же для
 // update-опов — замена фото на живой ноде. photoCache — Map id → {url,
@@ -256,13 +286,13 @@ export async function resolveImages(value, photoCache, { max = Infinity, enabled
 			if (picked?.query && !n.query) n.query = picked.query;
 			let img = picked ? await safe(download(picked.url)) : null;
 			if (!img && typeof n.query === "string" && n.query.trim()) {
-				img =
-					(await safe(pexels(n.query, i))) ??
-					(await safe(unsplash(n.query, i))) ??
-					(await safe(pixabay(n.query, i))) ??
-					(await safe(openverse(n.query, i))) ??
-					(await safe(loremflickr(n.query, w, h, i))) ??
-					(await picsum(n.query, w, h, i));
+				// настоящие стоки с полным запросом, затем с укороченными (длинный запрос часто пуст);
+				// случайные заглушки — только если не нашлось ничего
+				for (const q of queryVariants(n.query)) {
+					img = await safe(fromStocks(q, i));
+					if (img) break;
+				}
+				img ??= (await safe(loremflickr(n.query, w, h, i))) ?? (await picsum(n.query, w, h, i));
 			}
 			if (!img) {
 				report.failed.push(`"${n.photo || n.query}": фото не найдено`);

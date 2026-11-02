@@ -314,7 +314,7 @@ export async function applyEditOp(
 				if (!root || root.removed || !("findAll" in root)) return note(plan.match.in);
 				scope = root as unknown as SearchNode;
 			}
-			const found = searchIn(scope, { query: plan.query, text: plan.byText, type: plan.match.type, limit: 100 });
+			const found = searchIn(scope, { query: plan.query, text: plan.byText, type: plan.match.type, exact: plan.match.nameExact && !!plan.match.name, limit: 100 });
 			ids = found.results.map((r) => String(r.id));
 			if (plan.match.name && plan.match.text)
 				state.warnings.push("update: у match заданы и name, и text — использован name");

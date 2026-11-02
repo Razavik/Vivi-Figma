@@ -81,6 +81,7 @@ claude mcp add vivi-figma --scope user -- node /путь/к/Vivi-Figma/server/mc
 | `figma_outline`       | верхние фреймы страницы                                                                     |
 | `figma_node`          | дерево ноды: размеры, auto-layout, цвета, шрифты, `box:[x,y,w,h]`, свойства векторов        |
 | `figma_screenshot`    | PNG ноды (`scale`, `maxSize` до 4096); `region:[x,y,w,h]` — приблизить часть, `tiles:N` — нарезать длинную страницу на читаемые куски |
+| `figma_review`        | одним вызовом: замечания lint по ноде + нарезка на куски (контраст над фото помечен `onPhoto`) |
 | `figma_search`        | поиск нод по имени или тексту, фильтр по типу                                               |
 | `figma_assets`        | фото и иконки внутри ноды                                                                   |
 | `figma_export`        | сохранить ноды файлами (PNG / JPG / SVG / PDF)                                              |
@@ -88,7 +89,7 @@ claude mcp add vivi-figma --scope user -- node /путь/к/Vivi-Figma/server/mc
 | `figma_tokens`        | цвета, шрифты, радиусы, отступы по частоте — для CSS-переменных                             |
 | `figma_design_system` | локальные стили, переменные и компоненты файла                                              |
 
-Несколько нод за один вызов: у `figma_node`, `figma_screenshot`, `figma_tokens` и `figma_assets` вместо `id` можно передать массив `ids` (до 10, у скриншотов до 8) — результат придёт списком в том же порядке.
+Несколько нод за один вызов: у `figma_node`, `figma_screenshot`, `figma_tokens` и `figma_assets` вместо `id` можно передать массив `ids` (у `figma_node` до 25, у скриншотов до 8, у остальных до 10) — результат придёт списком в том же порядке.
 
 `figma_node` отдаёт у нод `vars` (имена привязанных переменных и стилей Figma) и `asset` (фото/иконка с форматом экспорта). Текст, перенесённый только шириной блока, приходит одной строкой с `lines:N`. С `format:"css"` вместо JSON приходит готовая вёрстка: HTML с flex-стилями, `var(--имя, #hex)` для переменных, список `:root` и `<img>` под ассеты. `figma_tokens` показывает имена переменных у цветов.
 

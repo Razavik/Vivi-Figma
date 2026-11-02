@@ -16,7 +16,7 @@ import {
 	screenshotScale,
 	type AssetNode,
 } from "./mcp-core";
-import { runComponentize, runCropShot, runFocus, runFonts, runStyles } from "./mcp-extra";
+import { runComponentize, runCropShot, runFocus, runFonts, runReview, runStyles } from "./mcp-extra";
 import { runCreate, runEdit, runUndo, settleImages } from "./mcp-write";
 import { collectTokens, compactSpec, mergeExtras, toCss, type NodeExtra, type Spec } from "./mcp-describe";
 import { firstSolid } from "./paint";
@@ -299,6 +299,13 @@ export async function runMcpTool(tool: unknown, args: Record<string, unknown>): 
 					{ ...args, format: undefined },
 				);
 				return { ok: true, data: { assets, ...exported } };
+			}
+			case "review": {
+				const a = nodeArgs(args);
+				if (!a) return { ok: false, error: "нужен id ноды" };
+				const node = await nodeById(a.id);
+				if (!node) return { ok: false, error: `нода ${a.id} не найдена` };
+				return await runReview(node, args);
 			}
 			case "fonts":
 				return await runFonts(args);

@@ -6,7 +6,7 @@ frame — container/layout node
   w, h?: number | "hug" | "fill" — px, fit-content, or stretch to parent ("fill" works only inside auto-layout frames; "hug" works only on frames that have auto-layout (layout vertical/horizontal), on text, and on the root frame when it has layout vertical/horizontal)
   layout?: "none" | "vertical" | "horizontal" (default "none")
   gap?: number — spacing between children in auto-layout
-  padding?: number | number[] — CSS shorthand: [v]=all sides, [v,h]=vertical/horizontal, [t,h,b]=top/horizontal/bottom, [t,r,b,l]=each side
+  padding?: number | number[] — CSS shorthand: [v]=all sides, [v,h]=vertical/horizontal, [t,h,b]=top/horizontal/bottom, [t,r,b,l]=each side; a CSS string ("16px 32px") is also accepted
   align?: "start" | "center" | "end" | "space-between" — main axis alignment
   cross?: "start" | "center" | "end" — counter axis alignment
   wrap?: boolean — horizontal auto-layout wraps children onto new rows (chip clouds, galleries, the Components library); gap is the gap inside a row, rowGap (default = gap) the gap between rows
@@ -63,7 +63,7 @@ image — photo block: the server finds a real stock photo by "query" and insert
 
 icon — real vector icon (builds actual vector nodes, editable in Figma). Two ways:
   1) PREFERRED — from the Lucide library by name: icon: "arrow-right" (kebab-case Lucide name, e.g. "search", "shopping-cart", "user", "heart", "star", "menu", "x", "check", "chevron-down", "phone", "mail", "map-pin", "settings", "home", "wrench", "hammer", "truck", "shield-check", "credit-card", "clock", "bell", "calendar", "download", "upload", "trash-2", "pencil", "plus", "minus", "filter", "layout-grid", "list", "package", "tag", "percent", "gift", "lock", "eye", "info", "alert-triangle", "circle-check", "thumbs-up", "message-circle", "send", "share-2", "link", "globe", "image", "play", "zap", "sun", "moon", "log-in", "log-out", "chart-bar", "wallet", "headphones", "bookmark"). Any other real Lucide name works too; an unknown name is matched to the closest icon.
-     color?: "#RRGGBB" — icon color (line icons: it is the stroke color); strokeWidth?: number (default 2, thinner = lighter look)
+     color?: "#RRGGBB" or "style:<name>" — icon color (line icons: it is the stroke color); strokeWidth?: number (default 2, thinner = lighter look)
   2) Your own drawing: svg: string — valid <svg>...</svg> markup (paths/basic shapes), when Lucide has nothing suitable (brand logos, special shapes).
   w, h?: number (default 24), name?: string (layer name)
 

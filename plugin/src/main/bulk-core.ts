@@ -5,6 +5,7 @@ export const MAX_BULK = 100;
 export interface MatchSpec {
 	in?: string;
 	name?: string;
+	nameExact?: boolean;
 	text?: string;
 	type?: string;
 }
@@ -25,7 +26,7 @@ export function bulkPlan(op: { id?: unknown; ids?: unknown; match?: unknown }): 
 	if (op.match && typeof op.match === "object" && !Array.isArray(op.match)) {
 		const m = op.match as Record<string, unknown>;
 		const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
-		const match: MatchSpec = { in: str(m.in), name: str(m.name), text: str(m.text), type: str(m.type)?.toUpperCase() };
+		const match: MatchSpec = { in: str(m.in), name: str(m.name), text: str(m.text), type: str(m.type)?.toUpperCase(), nameExact: m.nameExact === true };
 		if (!match.name && !match.text && !match.type)
 			return { kind: "error", error: "match: нужен хотя бы один из name, text, type" };
 		return { kind: "match", match, query: match.name ?? match.text ?? "*", byText: !match.name && !!match.text };
