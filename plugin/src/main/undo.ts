@@ -431,10 +431,17 @@ async function revertRun(
 export async function undoRuns(
 	fromId?: number,
 ): Promise<{ restored: number; removed: number; runs: number }> {
-	const targets =
-		fromId === undefined
-			? runs.slice(-1)
-			: runs.filter((r) => r.id >= fromId);
+	return undoList(fromId === undefined ? runs.slice(-1) : runs.filter((r) => r.id >= fromId));
+}
+
+// Последние n прогонов по порядку журнала, а не по id: id бывают разного
+// масштаба (UI считает с единицы, MCP берёт Date.now), и фильтр по id
+// откатывал вместе с последним прогоном всю историю.
+export async function undoLastRuns(n: number): Promise<{ restored: number; removed: number; runs: number }> {
+	return undoList(runs.slice(-Math.max(1, Math.round(n))));
+}
+
+async function undoList(targets: Run[]): Promise<{ restored: number; removed: number; runs: number }> {
 	let restoredNodes: SceneNode[] = [];
 	let restored = 0;
 	let removed = 0;

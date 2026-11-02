@@ -62,11 +62,20 @@ export async function runFocus(args: Record<string, unknown>): Promise<WriteResu
 
 // figma_styles: цветовые и текстовые стили, переменные — создаёт или обновляет по имени.
 export async function runStyles(args: Record<string, unknown>): Promise<WriteResult> {
-	const done: { created: string[]; updated: string[]; skipped: string[] } = { created: [], updated: [], skipped: [] };
+	const done: { created: string[]; updated: string[]; skipped: string[]; removed?: string[] } = { created: [], updated: [], skipped: [] };
 	const colors = (args.colors ?? {}) as Record<string, unknown>;
 	const texts = (args.texts ?? {}) as Record<string, Record<string, unknown>>;
 	const vars = args.variables as { collection?: string; values?: Record<string, unknown> } | undefined;
 
+	// Удаление по имени: пробные стили не должны оставаться в файле.
+	if (Array.isArray(args.remove) && args.remove.length) {
+		const names = new Set((args.remove as unknown[]).filter((x): x is string => typeof x === "string"));
+		for (const st of [...(await figma.getLocalPaintStylesAsync()), ...(await figma.getLocalTextStylesAsync())])
+			if (names.has(st.name)) {
+				st.remove();
+				(done.removed ??= []).push(st.name);
+			}
+	}
 	const paintStyles = await figma.getLocalPaintStylesAsync();
 	for (const [name, hex] of Object.entries(colors).slice(0, 100)) {
 		if (typeof hex !== "string" || !HEX.test(hex)) {

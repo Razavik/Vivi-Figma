@@ -9,7 +9,7 @@ import { applyEditOp, type EditOp } from "./edits";
 import { lint, setRequestLang, type Issue, type LintNode } from "./lint";
 import { compactSpec, type Spec } from "./mcp-describe";
 import { serializeNode, setSerializeLimits } from "./serializer";
-import { beginRun, isSnapshotTop, recordCreated, snapshotFor, undoRuns, undoableRuns } from "./undo";
+import { beginRun, isSnapshotTop, recordCreated, snapshotFor, undoLastRuns, undoableRuns } from "./undo";
 
 export type WriteResult =
 	| { ok: true; data: unknown; images?: { data: string; mimeType: string }[] }
@@ -290,7 +290,7 @@ export async function runUndo(args: Record<string, unknown>): Promise<WriteResul
 		const ids = undoableRuns();
 		if (!ids.length) break;
 		try {
-			const result = await undoRuns(ids[ids.length - 1]);
+			const result = await undoLastRuns(1);
 			undone += result.runs;
 			restored += result.restored;
 			removed += result.removed;

@@ -214,9 +214,10 @@ export const MCP_TOOLS_WRITE = {
 	styles: {
 		write: true,
 		description:
-			'Create or update (by name) color styles, text styles and variables from design tokens, so a design system exists before building. Then reference them in specs as "style:<name>" (fill, color, stroke) and "textStyle":"<name>" on text nodes. Not covered by figma_undo.',
+			'Create or update (by name) color styles, text styles and variables from design tokens, so a design system exists before building. Then reference them in specs as "style:<name>" (fill, color, stroke) and "textStyle":"<name>" on text nodes; \"remove\" deletes styles by name. Not covered by figma_undo.',
 		input: {
 			colors: z.record(z.string(), z.string()).optional().describe('{"Brand/Primary":"#B6F24A","Text/Default":"#F2F5FF"}'),
+			remove: z.array(z.string()).max(50).optional().describe("Names of local color/text styles to delete, e.g. trial styles"),
 			texts: z
 				.record(z.string(), z.object({ family: z.string().optional(), weight: z.string().optional(), size: z.number(), lineHeight: z.number().optional(), letterSpacing: z.number().optional() }))
 				.optional()
