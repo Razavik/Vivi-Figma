@@ -72,8 +72,14 @@ export async function runStyles(args: Record<string, unknown>): Promise<WriteRes
 		const names = new Set((args.remove as unknown[]).filter((x): x is string => typeof x === "string"));
 		for (const st of [...(await figma.getLocalPaintStylesAsync()), ...(await figma.getLocalTextStylesAsync())])
 			if (names.has(st.name)) {
-				st.remove();
-				(done.removed ??= []).push(st.name);
+				// имя читаем до remove: у удалённого стиля его уже не получить
+				const name = st.name;
+				try {
+					st.remove();
+					(done.removed ??= []).push(name);
+				} catch (err) {
+					done.skipped.push(`${name}: ${String((err as Error)?.message || err)}`);
+				}
 			}
 	}
 	const paintStyles = await figma.getLocalPaintStylesAsync();
