@@ -18,5 +18,7 @@ await build({
 	outExtension: { ".js": ".mjs" },
 	logLevel: "error",
 });
-const result = spawnSync(process.execPath, ["--test", out], { stdio: "inherit" });
+// node --test с каталогом не работает одинаково на всех ОС — передаём файлы явно.
+const files = readdirSync(out).filter((f) => f.endsWith(".mjs")).map((f) => `${out}/${f}`);
+const result = spawnSync(process.execPath, ["--test", ...files], { stdio: "inherit" });
 process.exit(result.status ?? 1);
