@@ -546,10 +546,16 @@ export async function applyEditOp(
 		const parent = node.parent as (BaseNode & ChildrenMixin) | null;
 		if (!parent || !("children" in parent)) return note(op.id);
 		const i = parent.children.indexOf(node);
+		// front = на самый верх стопки = последний ребёнок (append).
 		const last = parent.children.length - 1;
-		const to = { front: last, back: 0, forward: Math.min(last, i + 1), backward: Math.max(0, i - 1) }[String(op.to)];
+		const to = { front: last + 1, back: 0, forward: i + 1, backward: i - 1 }[String(op.to)];
 		if (to === undefined) return note(op.id);
-		parent.insertChild(to, node);
+		// insertChild у уже существующего ребёнка считает индексы ДО его изъятия:
+		// движение вниз по стопке (to > i) требует +1, иначе нода остаётся на месте.
+		if (to <= 0) parent.insertChild(0, node);
+		else if (to >= parent.children.length) parent.appendChild(node);
+		else if (to < i) parent.insertChild(to, node);
+		else parent.insertChild(to + 1, node);
 		touched.add(node.id);
 	} else if (op.op === "insert") {
 		let parent = (await figma.getNodeByIdAsync(String(op.parent))) as

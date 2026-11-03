@@ -21,6 +21,7 @@ export type LintNode = {
 	parent?: LintNode | null;
 	children?: readonly LintNode[];
 	absoluteBoundingBox?: Box | null;
+	opacity?: number;
 	width?: number;
 	height?: number;
 	fills?: readonly Paint[] | symbol;
@@ -135,16 +136,55 @@ function solidOf(n: LintNode): { color: RGB; alpha: number } | null {
 	return p && p.color ? { color: p.color, alpha: p.opacity ?? 1 } : null;
 }
 
-// Фон под нодой: первая сплошная заливка у предков, иначе белая страница.
-// null — ближайший фон градиент или фото: контраст по одному цвету не измерить.
-function backgroundOf(n: LintNode): RGB | null {
-	for (let p = n.parent; p; p = p.parent) {
+// Пересечение боксов (для оценки «слой покрывает текст»).
+function intersects(a: Box, b: Box): boolean {
+	return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+}
+
+// Эффективный фон под текстом: заливки предков смешиваются сверху вниз,
+// затем — сплошные слои под текстом внутри родителя (скримы, плашки).
+// null — подложка неизвестна (фото/градиент без полностью покрывающего слоя):
+// контраст по одному цвету не измерить, ложное замечание хуже пропуска.
+function effectiveBackground(n: LintNode): RGB | null {
+	let bg: RGB = { r: 1, g: 1, b: 1 };
+	let known = true;
+	const mix = (node: LintNode, s: { color: RGB; alpha: number }): void => {
+		// прозрачность ноды умножается на прозрачность заливки (скримы задают opacity)
+		const alpha = s.alpha * (typeof node.opacity === "number" ? node.opacity : 1);
+		if (alpha <= 0) return;
+		const eff = { color: s.color, alpha };
+		if (!known) {
+			// ниже неизвестное (фото): виден только полностью непрозрачный слой
+			if (eff.alpha >= 1) { known = true; bg = eff.color; }
+			return;
+		}
+		bg = blend(eff.color, eff.alpha, bg);
+	};
+	// предки от страницы к тексту
+	const chain: LintNode[] = [];
+	for (let p = n.parent; p; p = p.parent) chain.push(p);
+	for (let k = chain.length - 1; k >= 0; k--) {
+		const p = chain[k];
 		const paints = Array.isArray(p.fills) ? (p.fills as readonly Paint[]).filter((f) => f.visible !== false) : [];
-		if (paints.some((f) => f.type === "IMAGE" || f.type.startsWith("GRADIENT"))) return null;
+		if (paints.some((f) => f.type === "IMAGE" || f.type.startsWith("GRADIENT"))) { known = false; continue; }
 		const s = solidOf(p);
-		if (s && s.alpha > 0.5) return s.color;
+		if (s) mix(p, s);
 	}
-	return { r: 1, g: 1, b: 1 };
+	// слои ниже текста внутри родителя (раньше в стопке = ниже по z)
+	const parent = n.parent;
+	if (parent && Array.isArray(parent.children) && n.absoluteBoundingBox) {
+		for (const sib of parent.children) {
+			if (sib === n) break; // дальше — выше текста
+			if (sib.visible === false) continue;
+			const box = sib.absoluteBoundingBox;
+			if (!box || !intersects(box, n.absoluteBoundingBox)) continue;
+			const paints = Array.isArray(sib.fills) ? (sib.fills as readonly Paint[]).filter((f) => f.visible !== false) : [];
+			if (paints.some((f) => f.type === "IMAGE" || f.type.startsWith("GRADIENT"))) { known = false; continue; }
+			const s = solidOf(sib);
+			if (s) mix(sib, s);
+		}
+	}
+	return known ? bg : null;
 }
 
 function isBold(n: LintNode): boolean {
@@ -238,7 +278,7 @@ function walk(
 		if (size && size < 12) add("small-text", `кегль ${size}px меньше 12`);
 		const fg = solidOf(n);
 		if (fg) {
-			const bg = backgroundOf(n);
+			const bg = effectiveBackground(n);
 			if (bg) {
 				const ratio = contrast(blend(fg.color, fg.alpha, bg), bg);
 				const large = size >= 24 || (size >= 18.66 && isBold(n));
