@@ -81,7 +81,7 @@ claude mcp add vivi-figma --scope user -- node /путь/к/Vivi-Figma/server/mc
 | `figma_outline`       | верхние фреймы страницы                                                                     |
 | `figma_node`          | дерево ноды: размеры, auto-layout, цвета, шрифты, `box:[x,y,w,h]`, свойства векторов        |
 | `figma_screenshot`    | PNG ноды (`scale`, `maxSize` до 4096); `region:[x,y,w,h]` — приблизить часть, `tiles:N` — нарезать длинную страницу на читаемые куски |
-| `figma_review`        | одним вызовом: замечания lint по ноде + нарезка на куски (контраст над фото помечен `onPhoto`) |
+| `figma_review`        | одним вызовом: замечания lint по ноде + нарезка на куски (контраст над фото помечен `onPhoto`) |; `fix:true` чинит сетку 4/8 и мелкий кегль сам (с записью и откатом)
 | `figma_search`        | поиск нод по имени или тексту, фильтр по типу                                               |
 | `figma_assets`        | фото и иконки внутри ноды                                                                   |
 | `figma_export`        | сохранить ноды файлами (PNG / JPG / SVG / PDF)                                              |
@@ -108,7 +108,7 @@ claude mcp add vivi-figma --scope user -- node /путь/к/Vivi-Figma/server/mc
 | `figma_schema` | схемы редких частей (фигуры, группировка)                                                        |
 | `figma_icons`  | поиск имён иконок (Lucide; Phosphor/Tabler/Material — если установлены)                          |
 | `figma_styles` | создать/обновить цветовые и текстовые стили и переменные из токенов (дальше — `style:<имя>` в спеке); `remove:[…]` удаляет стили по имени |
-| `figma_variants` | набор вариантов одним вызовом (кнопка Default/Hover/Pressed, FAQ Closed/Open, таб Active/Inactive): компоненты в «Components», реакции, замена одиночных копий экземплярами |
+| `figma_variants` | набор вариантов одним вызовом (кнопка Default/Hover/Pressed, FAQ Closed/Open, таб Active/Inactive): компоненты в «Components», реакции, замена одиночных копий экземплярами |; варианты можно строить из существующих блоков по их `id` (разные структуры — разные варианты); `dry:true` возвращает операции без записи
 | `figma_componentize` | из повторяющихся блоков одной формы собрать компонент и экземпляры (тексты и фото сохраняются) |
 | `figma_fonts`  | какие шрифты доступны (и какие начертания у семейства)                                          |
 | `figma_focus`  | выделить ноды и показать их в Figma                                                              |
@@ -162,6 +162,8 @@ claude mcp add vivi-figma --scope user -- node /путь/к/Vivi-Figma/server/mc
 npm run build       # сборка плагина (Figma подхватывает её сама)
 npm run build:icons # пересобрать server/icons/lucide.json из lucide-static
 npm run typecheck   # типы плагина
+npm test           # юнит-тесты сервера и плагина
+npm run smoke      # проверка собранного пакета (нужна перед публикацией)
 ```
 
 Изменения `server/*.mjs` требуют перезапуска моста (или MCP-процесса).

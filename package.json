@@ -1,6 +1,6 @@
 {
 	"name": "vivi-figma-mcp",
-	"version": "0.4.6",
+	"version": "0.5.0",
 	"description": "MCP-сервер: ИИ-агенты (Claude Code, Cursor, Devin…) смотрят дизайн в открытом файле Figma, выгружают из него картинки и создают/правят дизайн настоящими нодами.",
 	"license": "MIT",
 	"type": "module",
@@ -39,8 +39,9 @@
 		"test": "npm --prefix server test && npm --prefix plugin test",
 		"test:server": "npm --prefix server test",
 		"test:plugin": "npm --prefix plugin test",
-		"prepublishOnly": "node scripts/build-icons.mjs && npm --prefix plugin install && npm --prefix plugin run build",
-		"build:icons": "node scripts/build-icons.mjs"
+		"prepublishOnly": "node scripts/build-icons.mjs && npm --prefix plugin install && npm --prefix plugin run build && npm test && node scripts/smoke.mjs",
+		"build:icons": "node scripts/build-icons.mjs",
+		"smoke": "node scripts/smoke.mjs"
 	},
 	"dependencies": {
 		"@modelcontextprotocol/sdk": "^1.29.0",
