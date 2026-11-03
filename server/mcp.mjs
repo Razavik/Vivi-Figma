@@ -253,7 +253,9 @@ for (const [name, def] of Object.entries(MCP_TOOLS)) {
 				if (target?.error) throw new Error(target.error);
 				// Запись: проверка спеки и подготовка (иконки, фото) до вызова плагина.
 				let prepared = null;
-				if (def.write) {
+				const writes = def.write || (name === "review" && resolved.args.fix === true);
+				if (name === "review" && resolved.args.fix === true && READONLY) throw new Error("fix у review недоступен в режиме только чтения (MCP_READONLY)");
+				if (writes) {
 					const { file, ...rest } = resolved.args;
 					resolved.args = rest;
 					await guardFile(file);

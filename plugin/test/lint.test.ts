@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { lint, type LintNode } from "../src/main/lint";
+import { fixToGrid, lint, type LintNode } from "../src/main/lint";
 
 const white = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
 const dark = [{ type: "SOLID", color: { r: 0.1, g: 0.08, b: 0.06 } }];
@@ -49,4 +49,14 @@ test("контраст: фото без полностью покрывающе�
 	pic.parent = root;
 	cap.parent = root;
 	assert.equal(lint(root).filter((i) => i.kind === "contrast").length, 0);
+});
+
+test("fixToGrid: до 12 — чётное, больше — кратное 4", () => {
+	assert.equal(fixToGrid(13), 12);
+	assert.equal(fixToGrid(14), 16);
+	assert.equal(fixToGrid(18), 20);
+	assert.equal(fixToGrid(22), 24);
+	assert.equal(fixToGrid(5), 6);
+	assert.equal(fixToGrid(3), 4);
+	assert.equal(fixToGrid(8), 8);
 });

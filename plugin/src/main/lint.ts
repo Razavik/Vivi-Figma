@@ -37,6 +37,11 @@ export type LintNode = {
 	characters?: string;
 };
 
+// Ближайшее значение шкалы: до 12 — чётное, больше — кратное 4 (та же логика, что в off-grid).
+export function fixToGrid(v: number): number {
+	return v > 12 ? Math.round(v / 4) * 4 : Math.round(v / 2) * 2;
+}
+
 const NUMERIC = /^[+\-−]?\s?[\d\s.,]+\s?(%|₽|\$|€|руб\.?|K|M)?$/;
 
 // Проверки блоков chart/table по исходной спеке из pluginData("meta").
@@ -297,7 +302,7 @@ function walk(
 			n.paddingBottom,
 			n.paddingLeft,
 		].filter((v): v is number => typeof v === "number");
-		// Шкала 4/8: мелкие значения допускаем чётными (2, 6, 10), крупные — кратными 4
+		// Шкала 4/8: мелкие значения допускаем чётными (2, 6, 10), крупные — кратными 4 (округление — fixToGrid)
 		const bad = vals.filter((v) => (v > 12 ? v % 4 !== 0 : v % 2 !== 0));
 		if (bad.length)
 			add("off-grid", `отступы вне шкалы 4/8: ${[...new Set(bad)].join(", ")}`);

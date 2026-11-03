@@ -59,6 +59,7 @@ export const MCP_TOOLS = {
 			id: z.string().describe("Figma node id of the page frame or section"),
 			tiles: z.number().int().min(2).max(12).optional().describe("Number of slices, default by height (about one per 900 px)"),
 			maxSize: z.number().int().min(128).max(4096).optional().describe("Longest side of a slice in px"),
+			fix: z.boolean().optional().describe("true: fix the mechanical issues (off-grid spacing rounded to the 4/8 grid, text under 12px raised to 12) and report what was fixed; contrast and content are never touched. This WRITES to the file (undo with figma_undo)"),
 		},
 	},
 	search: {

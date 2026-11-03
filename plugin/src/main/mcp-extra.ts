@@ -6,7 +6,7 @@ import { ensureLibrary, liftToLibrary } from "./library";
 import { loadDesignSystem } from "./designsystem";
 import { beginWrite, settleImages, type WriteResult } from "./mcp-write";
 import { recordCreated, snapshotFor, undoableRuns } from "./undo";
-import { lint, type Issue, type LintNode } from "./lint";
+import { fixToGrid, lint, type Issue, type LintNode } from "./lint";
 
 const HEX = /^#([0-9a-f]{6}|[0-9a-f]{8})$/i;
 const WEIGHT_STYLE: Record<string, string[]> = {
@@ -337,11 +337,51 @@ export async function runReview(node: SceneNode, args: Record<string, unknown>):
 		}
 		real.push(item);
 	}
+	// fix: механические замечания чиним на месте (сетка, мелкий кегль); контраст и тексты не трогаем.
+	const fixed: { id: string; kind: string; from: string; to: string }[] = [];
+	const skippedF: Issue[] = [];
+	if (args.fix === true && real.length) {
+		await beginWrite("review fix");
+		await snapshotFor([node.id]);
+		for (const i of real) {
+			const n = (await figma.getNodeByIdAsync(i.id)) as SceneNode | null;
+			if (!n || n.removed) continue;
+			if (i.kind === "off-grid" && "layoutMode" in n && (n as FrameNode).layoutMode !== "NONE") {
+				const f = n as FrameNode;
+				const before: string[] = [];
+				for (const k of ["paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "itemSpacing"] as const) {
+					const v = f[k];
+					if (typeof v !== "number" || v <= 0) continue;
+					const nv = fixToGrid(v);
+					if (nv !== v) {
+						f[k] = nv;
+						before.push(`${k}: ${v}→${nv}`);
+					}
+				}
+				if (before.length) fixed.push({ id: i.id, kind: i.kind, from: before.join(", "), to: "шкала 4/8" });
+			} else if (i.kind === "small-text" && n.type === "TEXT") {
+				try {
+					await loadTextFonts(n as TextNode);
+					const from = (n as TextNode).fontSize;
+					(n as TextNode).fontSize = 12;
+					fixed.push({ id: i.id, kind: i.kind, from: String(from), to: "12" });
+				} catch (err) {
+					skippedF.push({ ...i, detail: i.detail + " (шрифт не загрузился: " + String((err as Error)?.message || err) + ")" });
+				}
+			}
+		}
+		// остаток замечаний после правок
+		if (fixed.length) {
+			issues = lint(node as unknown as LintNode);
+			real.length = 0;
+			for (const i of issues.filter((x) => !hints.includes(x))) real.push(i);
+		}
+	}
 	const shots = await runCropShot(node, { tiles: typeof args.tiles === "number" ? args.tiles : Math.min(8, Math.max(2, Math.round(node.height / 900))), maxSize: args.maxSize });
 	if (!shots.ok) return shots;
 	return {
 		ok: true,
-		data: { id: node.id, name: node.name, issues: real.slice(0, 80), hints: hints.slice(0, 20), issueCount: real.length, ...(shots.data as object) },
+		data: { id: node.id, name: node.name, ...(args.fix === true ? { fixed, fixSkipped: skippedF } : {}), issues: real.slice(0, 80), hints: hints.slice(0, 20), issueCount: real.length, ...(shots.data as object) },
 		images: shots.images,
 	};
 }
