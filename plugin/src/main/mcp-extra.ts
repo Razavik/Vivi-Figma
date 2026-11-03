@@ -69,6 +69,8 @@ export async function runStyles(args: Record<string, unknown>): Promise<WriteRes
 
 	// Удаление по имени: пробные стили не должны оставаться в файле.
 	if (Array.isArray(args.remove) && args.remove.length) {
+		// Стили undo не покрывает — версия файла перед удалением.
+		void figma.saveVersionHistoryAsync("Vivi MCP: перед удалением стилей", "figma_styles remove").catch(() => {});
 		const names = new Set((args.remove as unknown[]).filter((x): x is string => typeof x === "string"));
 		for (const st of [...(await figma.getLocalPaintStylesAsync()), ...(await figma.getLocalTextStylesAsync())])
 			if (names.has(st.name)) {
@@ -214,7 +216,7 @@ export async function runComponentize(args: Record<string, unknown>): Promise<Wr
 	if (!group || group.length < 2) return { ok: false, error: "нет двух блоков одной структуры: компонент возможен только для одинаково устроенных блоков (слои, их число и типы)" };
 	const skipped = [...nodes.filter((n) => !group.includes(n)), ...notFrames].map((n) => ({ id: n.id, name: n.name }));
 	nodes.splice(0, nodes.length, ...group);
-	await beginWrite(`componentize: ${nodes[0].name}`);
+	await beginWrite(`componentize: ${nodes[0].name}`, { version: true });
 	await snapshotFor(nodes.map((n) => n.id));
 	const warnings: string[] = [];
 	if (skipped.length) warnings.push(`пропущено ${skipped.length} блок(ов) другой структуры (оставлены как есть): ${skipped.map((x) => x.name + " " + x.id).join(", ")}`);

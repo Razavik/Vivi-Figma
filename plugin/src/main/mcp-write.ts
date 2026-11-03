@@ -31,11 +31,13 @@ function resetState(): void {
 
 // Новый прогон для отката: id монотонный, первая запись за сессию плагина
 // ещё и сохраняет версию в историю файла Figma.
-export async function beginWrite(title: string): Promise<void> {
+// version:true у рискованных операций (componentize, variants, удаление стилей):
+// версия в историю файла пишется не только перед первой правкой сессии.
+export async function beginWrite(title: string, opts?: { version?: boolean }): Promise<void> {
 	lastRunId = Math.max(lastRunId + 1, Date.now());
 	setRequestLang(""); // язык запроса неизвестен — проверку «язык текста против языка запроса» отключаем
 	await beginRun(lastRunId, title);
-	if (!versionSaved) {
+	if (!versionSaved || opts?.version) {
 		versionSaved = true;
 		void figma.saveVersionHistoryAsync("Vivi MCP: перед правками агента", title).catch(() => {});
 	}
@@ -231,7 +233,7 @@ export async function runEdit(args: Record<string, unknown>): Promise<WriteResul
 	resetState();
 	await loadDesignSystem();
 	const ops = edits as EditOp[];
-	await beginWrite(`edit: ${ops.length} оп.`);
+	await beginWrite(`edit: ${ops.length} оп.`, { version: args.version === true });
 	const targets: string[] = [];
 	for (const op of ops) {
 		for (const key of ["id", "parent"] as const) if (typeof op?.[key] === "string") targets.push(op[key] as string);

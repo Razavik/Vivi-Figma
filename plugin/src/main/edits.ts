@@ -936,9 +936,13 @@ export async function applyEditOp(
 			node.parent.type === "COMPONENT_SET"
 				? (node.parent as ComponentSetNode)
 				: null;
-		if (!set) {
+		// Связи между экранами/фреймами: не вариант набора — реакции NAVIGATE
+		// (прототип, переход на другой фрейм). INSTANCE реакции не несёт.
+		const navigate =
+			!set && node.type !== "INSTANCE" && ["FRAME", "COMPONENT", "COMPONENT_SET"].includes(node.type);
+		if (!set && !navigate) {
 			state.warnings.push(
-				`set_interactions: ${op.id} не вариант набора (COMPONENT внутри COMPONENT_SET)`,
+				`set_interactions: ${op.id} не вариант набора и не фрейм (${node.type})`,
 			);
 			return;
 		}
@@ -963,17 +967,13 @@ export async function applyEditOp(
 				note(targetId);
 				return;
 			}
-			if (
-				target === node ||
-				target.type !== "COMPONENT" ||
-				target.parent !== set
-			) {
+			if (set && (target === node || target.type !== "COMPONENT" || target.parent !== set)) {
 				state.warnings.push(
 					`set_interactions: target ${targetId} — не другой вариант того же набора`,
 				);
 				return;
 			}
-			const reaction = buildReaction(entry, target.id);
+			const reaction = buildReaction(entry, target.id, navigate);
 			if (!reaction) {
 				state.warnings.push(
 					`set_interactions: невалидная запись ${JSON.stringify(entry)}`,
@@ -982,7 +982,7 @@ export async function applyEditOp(
 			}
 			reactions.push(reaction);
 		}
-		await (node as ComponentNode).setReactionsAsync(reactions);
+		await (node as ComponentNode | FrameNode).setReactionsAsync(reactions);
 		touched.add(node.id);
 	} else {
 		state.warnings.push(`неизвестная операция: ${String(op.op)}`);

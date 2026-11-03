@@ -125,6 +125,7 @@ const TRANSITIONS = new Map<string, "DISSOLVE" | "SMART_ANIMATE">([
 export function buildReaction(
 	entry: unknown,
 	targetId: string,
+	navigate = false,
 ): Reaction | null {
 	if (!entry || typeof entry !== "object" || Array.isArray(entry))
 		return null;
@@ -158,7 +159,8 @@ export function buildReaction(
 		actions: [
 			{
 				type: "NODE",
-				navigation: "CHANGE_TO",
+				// внутри набора вариантов — CHANGE_TO, между экранами/фреймами — NAVIGATE
+				navigation: navigate ? "NAVIGATE" : "CHANGE_TO",
 				destinationId: targetId,
 				transition,
 			},

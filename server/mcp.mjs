@@ -17,6 +17,7 @@ import WebSocket from "ws";
 import { BATCH_LIMITS, MCP_TOOLS, timeoutFor } from "./mcp-tools.mjs";
 import { guideText } from "./design-guide.mjs";
 import { applyLayoutDefaults, prepareDesign, validateSpec } from "./design-pipeline.mjs";
+import { checkSpecFields } from "./spec-fields.mjs";
 import { variantEdits } from "./variants-macro.mjs";
 import { searchIcons } from "./icons.mjs";
 import { SCHEMA_NAMES, schemaText } from "./schemas.mjs";
@@ -231,10 +232,13 @@ for (const [name, def] of Object.entries(MCP_TOOLS)) {
 			try {
 				// макро-инструмент (figma_variants) раскрывается в операции figma_edit
 				if (def.macro) {
-					const { file, quiet, ...rest } = args || {};
-					return await handlers.edit({ edits: variantEdits(rest), ...(file ? { file } : {}), ...(quiet ? { quiet } : {}) });
+					const { file, quiet, dry, ...rest } = args || {};
+					if (dry) return dryRun(variantEdits(rest));
+					return await handlers.edit({ edits: variantEdits(rest), version: true, ...(file ? { file } : {}), ...(quiet ? { quiet } : {}) });
 				}
 				if (def.local) return localTool(name, args || {});
+				// dry: только проверка схемы и полей, плагин не вызывается (id не проверяются)
+				if (name === "edit" && args?.dry === true) return dryRun(Array.isArray(args.edits) ? args.edits : []);
 				// Ссылки Figma и id вида 12-345 → "12:345"; ссылка на другой файл — отказ.
 				const resolved = resolveArgs(args || {});
 				if (resolved.error) throw new Error(resolved.error);
@@ -318,6 +322,14 @@ for (const [name, def] of Object.entries(MCP_TOOLS)) {
 			}
 		}),
 	);
+}
+
+// dry-run: нормализация операций и замечания без записи в файл.
+function dryRun(ops) {
+	const bad = validateSpec(ops);
+	const issues = checkSpecFields(ops);
+	const warnings = bad ? [bad] : [];
+	return { content: [{ type: "text", text: JSON.stringify({ dry: true, ops, issues, warnings }) }] };
 }
 
 await server.connect(new StdioServerTransport());

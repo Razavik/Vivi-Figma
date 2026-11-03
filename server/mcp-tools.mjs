@@ -149,6 +149,7 @@ export const MCP_TOOLS_WRITE = {
 			'Change existing nodes with a list of operations run in order: update (fields: name, fill, stroke, radius, shadow, text, fontSize, color, w, h, layout, gap, padding, align…; bulk via "ids":[..] or "match":{in,name,nameExact,text,type}; nameExact:true matches the whole name, not a part), move, delete, insert (a full node spec into a parent), duplicate, rename, reorder, restructure (regroup nodes by a target tree), group/ungroup, make_component, combine_variants, rebuild. Ids come from figma_node/figma_outline. An op that creates a node may carry "as":"name" — later ops refer to it as "$name" ("$page" = current page). Returns warnings (failed ops), lint issues, changed trees and a screenshot. See figma_guide for the full op list.',
 		input: {
 			edits: z.array(z.object({ op: z.string() }).passthrough()).min(1).max(200).describe("Operations, e.g. [{op:'update',id:'12:3',fill:'#111111'}]"),
+			dry: z.boolean().optional().describe("true: validate and return the normalized ops + spec-field warnings WITHOUT writing to the file (no plugin needed; node ids are not checked — only the shape of the operations)"),
 			quiet: z.boolean().optional().describe("true: no node trees or screenshot in the reply (applied count, warnings, lint issues and ids only) — for long builds in several calls"),
 			file: fileField,
 		},
@@ -201,6 +202,7 @@ export const MCP_TOOLS_WRITE = {
 				.max(40)
 				.optional(),
 			quiet: z.boolean().optional().describe("true: no node trees or screenshot in the reply (applied count, warnings, lint issues and ids only) — for long builds in several calls"),
+			dry: z.boolean().optional().describe("true: expand the set into figma_edit operations and return them without writing (no plugin needed; node ids are not checked)"),
 			file: fileField,
 		},
 	},
