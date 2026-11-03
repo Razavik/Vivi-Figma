@@ -426,19 +426,25 @@ async function revertRun(
 	return restored + removed > 0 ? 1 : 0;
 }
 
+// Выбор прогонов для отката — чистая функция (тестируется без Figma).
+// {last:n} — последние n по порядку журнала (не по id: id разного масштаба,
+// UI считает с единицы, MCP берёт Date.now); {fromId} — всё от него включительно.
+export function selectRuns<T extends { id: number }>(runs: readonly T[], sel: { last: number } | { fromId: number }): T[] {
+	if ("last" in sel) return runs.slice(-Math.max(1, Math.round(sel.last)));
+	return runs.filter((r) => r.id >= sel.fromId);
+}
+
 // Откат прогонов от fromId (включительно) до последнего, от новых к старым.
 // Без аргумента — только последний прогон.
 export async function undoRuns(
 	fromId?: number,
 ): Promise<{ restored: number; removed: number; runs: number }> {
-	return undoList(fromId === undefined ? runs.slice(-1) : runs.filter((r) => r.id >= fromId));
+	return undoList(fromId === undefined ? selectRuns(runs, { last: 1 }) : selectRuns(runs, { fromId }));
 }
 
-// Последние n прогонов по порядку журнала, а не по id: id бывают разного
-// масштаба (UI считает с единицы, MCP берёт Date.now), и фильтр по id
-// откатывал вместе с последним прогоном всю историю.
+// Последние n прогонов по порядку журнала.
 export async function undoLastRuns(n: number): Promise<{ restored: number; removed: number; runs: number }> {
-	return undoList(runs.slice(-Math.max(1, Math.round(n))));
+	return undoList(selectRuns(runs, { last: n }));
 }
 
 async function undoList(targets: Run[]): Promise<{ restored: number; removed: number; runs: number }> {

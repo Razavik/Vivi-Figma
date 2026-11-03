@@ -110,3 +110,14 @@ test("offset: следующая страница результата", () => {
 	assert.deepEqual(p3.results.map((r) => r.id), ["n4"]);
 	assert.equal(p3.truncated, false);
 });
+
+test("exact: «Hero» не находит «Hero text», регистр игнорируется", () => {
+	const nodes = [
+		{ id: "1", name: "Hero", type: "TEXT" },
+		{ id: "2", name: "Hero text", type: "TEXT" },
+		{ id: "3", name: "hero", type: "FRAME" },
+	];
+	const root = { id: "r", name: "root", type: "FRAME", findAll: (cb: (n: any) => boolean) => nodes.filter(cb) } as any;
+	assert.deepEqual(searchIn(root, { query: "hero" }).results.map((r) => r.id), ["1", "2", "3"]);
+	assert.deepEqual(searchIn(root, { query: "hero", exact: true }).results.map((r) => r.id).sort(), ["1", "3"]);
+});
