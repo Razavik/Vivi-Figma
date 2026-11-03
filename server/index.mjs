@@ -31,6 +31,7 @@ const httpServer = createServer((_req, res) => {
 const wss = new WebSocketServer({ server: httpServer, maxPayload: MAX_PAYLOAD });
 
 // MCP-клиент: пересылаем его вызовы в плагин.
+/** @param {import("ws").WebSocket} socket */
 function serveMcpClient(socket) {
 	socket.on("message", (raw) => {
 		let msg;
@@ -39,13 +40,15 @@ function serveMcpClient(socket) {
 		} catch {
 			return;
 		}
-		if (msg?.type !== "mcp_call" || typeof msg.reqId !== "string") return;
+		/** @type {import("../shared/protocol.d.ts").BridgeCall} */
+		const call = msg;
+		if (call?.type !== "mcp_call" || typeof call.reqId !== "string") return;
 		const reply = (body) => {
 			if (socket.readyState === socket.OPEN)
-				socket.send(JSON.stringify({ type: "mcp_result", reqId: msg.reqId, ...body }));
+				socket.send(JSON.stringify({ type: "mcp_result", reqId: call.reqId, ...body }));
 		};
 		relay
-			.call(msg.tool, msg.args)
+			.call(call.tool, call.args)
 			.then((res) => reply({ ok: true, data: res.data, images: res.images }))
 			.catch((err) => reply({ ok: false, error: String(err?.message || err) }));
 	});

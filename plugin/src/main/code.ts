@@ -19,7 +19,7 @@ interface Msg {
 let queue: Promise<void> = Promise.resolve();
 
 figma.ui.onmessage = async (msg: Msg) => {
-	if (msg.type === "mcp_call" && typeof msg.reqId === "string") {
+	if (msg.type === "mcp_call" && typeof msg.reqId === "string") { // BridgeCall из shared/protocol.d.ts
 		const args = (msg.args && typeof msg.args === "object" ? msg.args : {}) as Record<string, unknown>;
 		// Вызовы идут по очереди: они делят общее состояние сборки и сериализации.
 		const reqId = msg.reqId;

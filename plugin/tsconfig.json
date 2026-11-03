@@ -13,6 +13,6 @@
 		"types": []
 	},
 	"include": [
-		"src/ui/**/*.ts"
+		"src/ui/**/*.ts", "../../shared/**/*.d.ts"
 	]
 }

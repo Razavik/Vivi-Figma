@@ -1,5 +1,7 @@
 // UI плагина (MCP-версия): держит WebSocket к мосту и передаёт вызовы MCP
 // в main-код плагина и обратно. Показывает только состояние моста.
+import type { BridgeMessage } from "../../../shared/protocol";
+
 const WS_URL = "ws://localhost:8787";
 const CLIENT_ID = `vivi-${Math.random().toString(36).slice(2, 10)}`;
 
@@ -21,7 +23,7 @@ function connect(): void {
 	url.searchParams.set("client", CLIENT_ID);
 	ws = new WebSocket(url.toString());
 	ws.onmessage = (event) => {
-		let msg: { type?: string; reqId?: string; tool?: string; args?: unknown };
+		let msg: BridgeMessage;
 		try {
 			msg = JSON.parse(String(event.data));
 		} catch {

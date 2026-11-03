@@ -1,6 +1,7 @@
 // Инструменты MCP (только чтение): внешний агент смотрит дизайн в открытом
 // файле. Вызовы приходят через мост → UI → сюда; ничего не меняют на холсте.
 import { state } from "./canvas-state";
+import type { BridgeResult } from "../../../shared/protocol";
 import { loadComponents, loadDesignSystem } from "./designsystem";
 import {
 	MAX_EXPORT_BYTES,
@@ -23,9 +24,11 @@ import { firstSolid } from "./paint";
 import { searchIn, type SearchNode } from "./search";
 import { pageOutline, serializeNode, setSerializeLimits } from "./serializer";
 
+// Ответ инструмента — payload BridgeResult (type/reqId добавляет code.ts).
 export type McpResult =
 	| { ok: true; data: unknown; images?: { data: string; mimeType: string }[] }
 	| { ok: false; error: string };
+export type { BridgeResult };
 
 async function nodeById(id: string): Promise<SceneNode | null> {
 	const node = await figma.getNodeByIdAsync(id);
