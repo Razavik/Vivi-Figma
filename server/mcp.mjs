@@ -155,7 +155,13 @@ async function call(tool, args) {
 	});
 }
 
-const server = new McpServer({ name: "vivi-figma", version: "0.1.0" });
+// Версия пакета — из корневого package.json (и там, и в npm-пакете он есть рядом с server/).
+let PKG_VERSION = "0.0.0";
+try {
+	PKG_VERSION = JSON.parse(readFileSync(join(SERVER_DIR, "..", "package.json"), "utf8")).version || PKG_VERSION;
+} catch { /* пакет без package.json — версия не критична */ }
+
+const server = new McpServer({ name: "vivi-figma", version: PKG_VERSION });
 
 // Защита от записи не в тот файл: имя открытого файла запоминается; если оно
 // сменилось с прошлого вызова (или не совпало с аргументом file) — отказ один раз.

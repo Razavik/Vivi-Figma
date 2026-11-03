@@ -71,7 +71,7 @@ test("projectRoot: из env или cwd; корень диска и домашн�
 	const { projectRoot } = await import("../mcp-export.mjs");
 	// Пути под платформу: на Windows абсолютные — D:/…, в CI (Linux) — /…
 	const win = process.platform === "win32";
-	const P = (p) => (win ? p : p.replace(/^D:/, "/srv").replace(/^C:/, "/home/u").replace(/^E:/, "/mnt/e"));
+	const P = (p) => (win ? p : p === "D:/" ? "/" : p.replace(/^D:/, "/srv").replace(/^C:/, "/home/u").replace(/^E:/, "/mnt/e"));
 	assert.ok(projectRoot({}, P("D:/Projects/site"), P("C:/Users/me")).replaceAll("\\", "/").endsWith("Projects/site"));
 	assert.ok(projectRoot({ MCP_PROJECT_DIR: P("D:/A/b") }, P("D:/other"), P("C:/Users/me")).replaceAll("\\", "/").endsWith("A/b"));
 	assert.ok(projectRoot({ CLAUDE_PROJECT_DIR: P("D:/C/d") }, P("D:/other"), P("C:/Users/me")).replaceAll("\\", "/").endsWith("C/d"));
@@ -84,7 +84,7 @@ test("projectRoot: из env или cwd; корень диска и домашн�
 test("exportTarget: только внутри проекта и дополнительных корней", async () => {
 	const { exportRoots, exportTarget, projectRoot } = await import("../mcp-export.mjs");
 	const win = process.platform === "win32";
-	const P = (p) => (win ? p : p.replace(/^D:/, "/srv").replace(/^C:/, "/home/u").replace(/^E:/, "/mnt/e"));
+	const P = (p) => (win ? p : p === "D:/" ? "/" : p.replace(/^D:/, "/srv").replace(/^C:/, "/home/u").replace(/^E:/, "/mnt/e"));
 	const project = projectRoot({}, P("D:/Projects/site"), P("C:/Users/me"));
 	const { roots, defaultDir } = exportRoots({ project, extra: `${P("E:/other")}; relative/dir`, fallback: P("D:/app/exports") });
 	assert.equal(roots.length, 2); // проект + E:/other (относительный путь отброшен)
