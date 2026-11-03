@@ -2,12 +2,35 @@
 // MCP поднимается и отвечает. Должна поймать «опубликован битый пакет» (как 0.4.3).
 // Запуск: node scripts/smoke.mjs
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, readdirSync, existsSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, readdirSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { gunzipSync } from "node:zlib";
+
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+
+// Распаковка .tgz (ustar): заголовок 512 байт, поле размера в восьмеричной записи.
+function untar(file, dest) {
+	const buf = gunzipSync(readFileSync(file));
+	let off = 0;
+	while (off + 512 <= buf.length) {
+		const head = buf.subarray(off, off + 512);
+		if (head.every((b) => b === 0)) break;
+		const name = head.subarray(0, 100).toString().replace(/\0+$/, "");
+		const size = parseInt(head.subarray(124, 136).toString().replace(/\0.*$/, ""), 8) || 0;
+		const type = String.fromCharCode(head[156]);
+		off += 512;
+		const target = join(dest, name);
+		if (type === "5") mkdirSync(target, { recursive: true });
+		else if (type === "0" || type === "\0" || type === "7") {
+			mkdirSync(dirname(target), { recursive: true });
+			writeFileSync(target, buf.subarray(off, off + size));
+		}
+		off += Math.ceil(size / 512) * 512;
+	}
+}
 const fail = (msg) => {
 	console.error("smoke: " + msg);
 	process.exit(1);
@@ -31,9 +54,8 @@ try {
 	execFileSync("npm", ["pack", "--pack-destination", tmp], { cwd: ROOT, stdio: "pipe", shell: true, env });
 	const tgz = readdirSync(tmp).find((f) => f.endsWith(".tgz"));
 	if (!tgz) fail(`npm pack не дал tgz (tmp: ${readdirSync(tmp).join(",")})`);
-	// bsdtar на Windows не любит обратные слэши и «C:» — пути с прямыми слэшами
-	const posix = (p) => p.replaceAll("\\", "/");
-	execFileSync("tar", ["--force-local", "-xzf", posix(join(tmp, tgz)), "-C", posix(tmp)], { stdio: "pipe" });
+	// bsdtar/GNU tar на разных Windows различаются флагами — распаковываем сами (простой ustar).
+	untar(join(tmp, tgz), tmp);
 	const pkg = join(tmp, "package");
 	for (const need of ["server/mcp.mjs", "server/cli.mjs", "server/design-guide/spec.md", "plugin/dist/code.js", "plugin/dist/ui.html", "plugin/dist/build-id.txt", "server/icons/lucide.json"])
 		if (!existsSync(join(pkg, need))) fail(`в пакете нет ${need}`);
