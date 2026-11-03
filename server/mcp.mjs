@@ -238,7 +238,7 @@ for (const [name, def] of Object.entries(MCP_TOOLS)) {
 				}
 				if (def.local) return localTool(name, args || {});
 				// dry: только проверка схемы и полей, плагин не вызывается (id не проверяются)
-				if (name === "edit" && args?.dry === true) return dryRun(Array.isArray(args.edits) ? args.edits : []);
+				if (def.dry && args?.dry === true) return dryRun(Array.isArray(args.edits) ? args.edits : []);
 				// Ссылки Figma и id вида 12-345 → "12:345"; ссылка на другой файл — отказ.
 				const resolved = resolveArgs(args || {});
 				if (resolved.error) throw new Error(resolved.error);
@@ -248,7 +248,7 @@ for (const [name, def] of Object.entries(MCP_TOOLS)) {
 						throw new Error(`ссылка на другой файл (${resolved.fileKey}), а в Figma открыт ${st.fileKey}: откройте нужный файл с плагином`);
 				}
 				// Куда писать картинки — проверяем до вызова плагина.
-				const isExport = name === "export" || name === "export_assets";
+				const isExport = def.export === true;
 				const target = isExport ? exportTarget(EXPORT.roots, resolved.args.dir, resolved.args.folder, EXPORT.defaultDir) : null;
 				if (target?.error) throw new Error(target.error);
 				// Запись: проверка спеки и подготовка (иконки, фото) до вызова плагина.
@@ -260,7 +260,7 @@ for (const [name, def] of Object.entries(MCP_TOOLS)) {
 					resolved.args = rest;
 					await guardFile(file);
 				}
-				if (name === "create" || name === "edit") {
+				if (def.prepare) {
 					const payload = name === "create" ? resolved.args.spec : resolved.args.edits;
 					const bad = validateSpec(payload);
 					if (bad) throw new Error(bad);

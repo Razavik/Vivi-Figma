@@ -338,6 +338,8 @@ export async function runMcpTool(tool: unknown, args: Record<string, unknown>): 
 				const ds = await loadDesignSystem();
 				return { ok: true, data: { ...ds, components: loadComponents() } };
 			}
+			default:
+				return { ok: false, error: `нет обработчика инструмента: ${String(tool)}` };
 		}
 	} catch (err) {
 		return { ok: false, error: String(err) };

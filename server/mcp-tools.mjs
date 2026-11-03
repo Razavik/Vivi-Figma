@@ -83,6 +83,7 @@ export const MCP_TOOLS = {
 		},
 	},
 	export: {
+		export: true,
 		description:
 			"Save nodes as image files (PNG/JPG/SVG/PDF) on disk and return their paths — to use photos and icons from the design in code. Default format: svg for vector icons, png for the rest; raster scale 0.5–4 (default 2). Files are written only inside the current project: <project>/figma-exports by default, or the absolute folder passed as dir (must be inside the project).",
 		input: {
@@ -94,6 +95,7 @@ export const MCP_TOOLS = {
 		},
 	},
 	export_assets: {
+		export: true,
 		description:
 			"One call: find every photo and icon inside a node and save them as files (icons as svg, photos as png@2x). Identical images are saved once. Returns the list of assets with paths.",
 		input: {
@@ -126,6 +128,7 @@ const fileField = z.string().optional().describe("Expected name of the open Figm
 export const MCP_TOOLS_WRITE = {
 	create: {
 		write: true,
+		prepare: true,
 		timeoutMs: 120_000,
 		description:
 			"Build a design in the open Figma file as REAL nodes (frames, auto-layout, text, shapes, photos, icons) from a JSON spec. One section per call (up to ~80 nodes); returns rootId, node tree with ids, lint issues, warnings and a screenshot. New top-level frames are placed in free space (right of what is already on the page, top-aligned; direction:'below' puts them under it, after:<id> next to a given node, x/y exact) so they never overlap. Use parent to put it inside a container, replace to rebuild an existing node in place. Undo with figma_undo. Stock photos (image.query) are searched on the internet by the keywords. " +
@@ -145,6 +148,8 @@ export const MCP_TOOLS_WRITE = {
 	},
 	edit: {
 		write: true,
+		prepare: true,
+		dry: true,
 		timeoutMs: 120_000,
 		description:
 			'Change existing nodes with a list of operations run in order: update (fields: name, fill, stroke, radius, shadow, text, fontSize, color, w, h, layout, gap, padding, align…; bulk via "ids":[..] or "match":{in,name,nameExact,text,type}; nameExact:true matches the whole name, not a part), move, delete, insert (a full node spec into a parent), duplicate, rename, reorder, restructure (regroup nodes by a target tree), group/ungroup, make_component, combine_variants, rebuild. Ids come from figma_node/figma_outline. An op that creates a node may carry "as":"name" — later ops refer to it as "$name" ("$page" = current page). Returns warnings (failed ops), lint issues, changed trees and a screenshot. See figma_guide for the full op list.',
@@ -158,6 +163,7 @@ export const MCP_TOOLS_WRITE = {
 	variants: {
 		write: true,
 		macro: true,
+		dry: true,
 		timeoutMs: 120_000,
 		description:
 			'Create a Component Set with states in ONE call (button Default/Hover/Pressed, accordion Closed/Open, tab Active/Inactive, size or type variants): "base" is the frame spec of the component (name its text layers, e.g. "Label"), each variant gives props ({"Type":"Primary","State":"Hover"}), optional "set" (fields of the root to change, e.g. {"fill":"#8F430A"}) and "children" (changes by layer name, e.g. {"Label":{"color":"#fff"}}). Components land in the top-level "Components" frame; hover/press/click interactions are wired automatically (Default to Hover, Default to Pressed, or two states click both ways; "none" or an explicit list to change). "replace" swaps loose copies on the page for instances of a chosen variant with text overrides. Same checks and result as figma_edit; undo with figma_undo. Use it for every interactive element and repeated control (see figma_guide process, components).',
