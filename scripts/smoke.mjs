@@ -24,9 +24,13 @@ note("синтаксис server/*.mjs ок");
 // 2. Пакет: собрать, распаковать в temp, поставить зависимости.
 const tmp = mkdtempSync(join(tmpdir(), "vivi-smoke-"));
 try {
-	execFileSync("npm", ["pack", "--pack-destination", tmp], { cwd: ROOT, stdio: "pipe", shell: true });
+	// Внутри publish-lifecycle npm передаёт свои флаги вниз через env (npm_config_*):
+	// dry-run от publish делал бы вложенный pack/install пустышкой. Снимаем их.
+	const env = { ...process.env };
+	for (const k of Object.keys(env)) if (k.startsWith("npm_config_") || k.startsWith("npm_lifecycle_")) delete env[k];
+	execFileSync("npm", ["pack", "--pack-destination", tmp], { cwd: ROOT, stdio: "pipe", shell: true, env });
 	const tgz = readdirSync(tmp).find((f) => f.endsWith(".tgz"));
-	if (!tgz) fail("npm pack не дал tgz");
+	if (!tgz) fail(`npm pack не дал tgz (tmp: ${readdirSync(tmp).join(",")})`);
 	// bsdtar на Windows не любит обратные слэши и «C:» — пути с прямыми слэшами
 	const posix = (p) => p.replaceAll("\\", "/");
 	execFileSync("tar", ["--force-local", "-xzf", posix(join(tmp, tgz)), "-C", posix(tmp)], { stdio: "pipe" });
@@ -35,7 +39,7 @@ try {
 		if (!existsSync(join(pkg, need))) fail(`в пакете нет ${need}`);
 	note("состав пакета ок");
 
-	execFileSync("npm", ["install", "--omit=dev", "--no-audit", "--no-fund"], { cwd: pkg, stdio: "pipe", shell: true });
+	execFileSync("npm", ["install", "--omit=dev", "--no-audit", "--no-fund"], { cwd: pkg, stdio: "pipe", shell: true, env });
 	note("зависимости пакета поставлены");
 
 	// 3. Список инструментов из распакованного пакета.
