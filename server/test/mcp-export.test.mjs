@@ -69,39 +69,46 @@ test("saveExported: одинаковые файлы пишутся один ра
 
 test("projectRoot: из env или cwd; корень диска и домашняя папка не годятся", async () => {
 	const { projectRoot } = await import("../mcp-export.mjs");
-	assert.ok(projectRoot({}, "D:/Projects/site", "C:/Users/me").replaceAll("\\", "/").endsWith("Projects/site"));
-	assert.ok(projectRoot({ MCP_PROJECT_DIR: "D:/A/b" }, "D:/other", "C:/Users/me").replaceAll("\\", "/").endsWith("A/b"));
-	assert.ok(projectRoot({ CLAUDE_PROJECT_DIR: "D:/C/d" }, "D:/other", "C:/Users/me").replaceAll("\\", "/").endsWith("C/d"));
-	assert.equal(projectRoot({}, "D:/", "C:/Users/me"), null);
-	assert.equal(projectRoot({}, "C:/Users/me", "C:/Users/me"), null);
-	assert.equal(projectRoot({}, "relative", "C:/Users/me"), null);
-	assert.equal(projectRoot({}, "", "C:/Users/me"), null);
+	// Пути под платформу: на Windows абсолютные — D:/…, в CI (Linux) — /…
+	const win = process.platform === "win32";
+	const P = (p) => (win ? p : p.replace(/^D:/, "/srv").replace(/^C:/, "/home/u").replace(/^E:/, "/mnt/e"));
+	assert.ok(projectRoot({}, P("D:/Projects/site"), P("C:/Users/me")).replaceAll("\\", "/").endsWith("Projects/site"));
+	assert.ok(projectRoot({ MCP_PROJECT_DIR: P("D:/A/b") }, P("D:/other"), P("C:/Users/me")).replaceAll("\\", "/").endsWith("A/b"));
+	assert.ok(projectRoot({ CLAUDE_PROJECT_DIR: P("D:/C/d") }, P("D:/other"), P("C:/Users/me")).replaceAll("\\", "/").endsWith("C/d"));
+	assert.equal(projectRoot({}, P("D:/"), P("C:/Users/me")), null);
+	assert.equal(projectRoot({}, P("C:/Users/me"), P("C:/Users/me")), null);
+	assert.equal(projectRoot({}, "relative", P("C:/Users/me")), null);
+	assert.equal(projectRoot({}, "", P("C:/Users/me")), null);
 });
 
 test("exportTarget: только внутри проекта и дополнительных корней", async () => {
 	const { exportRoots, exportTarget, projectRoot } = await import("../mcp-export.mjs");
-	const project = projectRoot({}, "D:/Projects/site", "C:/Users/me");
-	const { roots, defaultDir } = exportRoots({ project, extra: "E:/other; relative/dir", fallback: "D:/app/exports" });
+	const win = process.platform === "win32";
+	const P = (p) => (win ? p : p.replace(/^D:/, "/srv").replace(/^C:/, "/home/u").replace(/^E:/, "/mnt/e"));
+	const project = projectRoot({}, P("D:/Projects/site"), P("C:/Users/me"));
+	const { roots, defaultDir } = exportRoots({ project, extra: `${P("E:/other")}; relative/dir`, fallback: P("D:/app/exports") });
 	assert.equal(roots.length, 2); // проект + E:/other (относительный путь отброшен)
 	assert.ok(defaultDir.replaceAll("\\", "/").endsWith("Projects/site/figma-exports"));
 	assert.deepEqual(exportTarget(roots, undefined, "x", defaultDir), { root: defaultDir, folder: "x" });
-	const ok = exportTarget(roots, "D:/Projects/site/public/img", "", defaultDir);
+	const ok = exportTarget(roots, P("D:/Projects/site/public/img"), "", defaultDir);
 	assert.equal(ok.error, undefined);
 	assert.ok(ok.root.replaceAll("\\", "/").endsWith("site/public/img"));
-	assert.equal(exportTarget(roots, "D:/Projects/site", "", defaultDir).error, undefined); // сам корень проекта
-	assert.equal(exportTarget(roots, "E:/other/img", "", defaultDir).error, undefined);
-	assert.match(exportTarget(roots, "D:/Projects/other-project", "", defaultDir).error, /вне проекта/);
-	assert.match(exportTarget(roots, "D:/Projects/site/../secret", "", defaultDir).error, /вне проекта/);
-	assert.match(exportTarget(roots, "D:/Projects/site-evil", "", defaultDir).error, /вне проекта/); // префикс-ловушка
-	assert.match(exportTarget(roots, "C:/Windows", "", defaultDir).error, /вне проекта/);
+	assert.equal(exportTarget(roots, P("D:/Projects/site"), "", defaultDir).error, undefined); // сам корень проекта
+	assert.equal(exportTarget(roots, P("E:/other/img"), "", defaultDir).error, undefined);
+	assert.match(exportTarget(roots, P("D:/Projects/other-project"), "", defaultDir).error, /вне проекта/);
+	assert.match(exportTarget(roots, P("D:/Projects/site/../secret"), "", defaultDir).error, /вне проекта/);
+	assert.match(exportTarget(roots, P("D:/Projects/site-evil"), "", defaultDir).error, /вне проекта/); // префикс-ловушка
+	assert.match(exportTarget(roots, P("C:/Windows"), "", defaultDir).error, /вне проекта/);
 	assert.match(exportTarget(roots, "public/img", "", defaultDir).error, /абсолютный/);
-	assert.match(exportTarget(roots, "D:/Projects/site", "../x", defaultDir).error, /folder/);
+	assert.match(exportTarget(roots, P("D:/Projects/site"), "../x", defaultDir).error, /folder/);
 });
 
 test("без пригодного проекта — запасная папка", async () => {
 	const { exportRoots, exportTarget } = await import("../mcp-export.mjs");
-	const { roots, defaultDir } = exportRoots({ project: null, extra: "", fallback: "D:/app/exports" });
+	const win = process.platform === "win32";
+	const fb = win ? "D:/app/exports" : "/srv/app/exports";
+	const { roots, defaultDir } = exportRoots({ project: null, extra: "", fallback: fb });
 	assert.equal(roots.length, 1);
 	assert.equal(exportTarget(roots, undefined, "", defaultDir).root, defaultDir);
-	assert.match(exportTarget(roots, "D:/anything", "", defaultDir).error, /вне проекта/);
+	assert.match(exportTarget(roots, win ? "D:/anything" : "/srv/anything", "", defaultDir).error, /вне проекта/);
 });
