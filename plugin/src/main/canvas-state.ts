@@ -7,6 +7,8 @@ export const state = {
 	infos: [] as string[],
 	nodeCount: 0,
 	serializedNodes: 0,
+	// id веток, обрезанных лимитом maxNodes при сериализации (для droppedIds в ответе)
+	dropped: [] as string[],
 	lastBuiltRootId: null as string | null,
 	// Компоненты, построенные в текущей спеке: имя → нода. Инстансы
 	// резолвят "component" по имени, а не только по id.

@@ -34,6 +34,7 @@ export const MCP_TOOLS = {
 			depth: z.number().int().min(1).max(12).optional().describe("Tree depth, default 6"),
 			maxNodes: z.number().int().min(10).max(600).optional().describe("Node limit, default 300"),
 			compact: z.boolean().optional().describe("Drop default values (zero padding/gap, align start/left, name = text). Default true"),
+			expand: z.boolean().optional().describe('For an INSTANCE id: list its OWN layers (with their ids, texts, color overrides) in "children" instead of only the main component structure'),
 			boxes: z.boolean().optional().describe('Add "box":[x,y,w,h] to every node, relative to the requested node (absolute placement). Default true'),
 			format: z.enum(["json", "css"]).optional().describe("json (default): node tree. css: ready HTML with inline flex styles, var(--name, #hex) for variables bound in Figma, :root list, asset <img> placeholders"),
 		},

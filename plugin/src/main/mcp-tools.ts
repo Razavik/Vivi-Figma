@@ -124,6 +124,7 @@ async function collectExtras(root: SceneNode, maxNodes: number, boxes: boolean, 
 
 function serialize(node: SceneNode, depth: number, maxNodes: number): unknown {
 	state.serializedNodes = 0;
+	state.dropped = [];
 	setSerializeLimits(maxNodes, depth);
 	try {
 		return serializeNode(node, 0);
@@ -214,7 +215,19 @@ export async function runMcpTool(tool: unknown, args: Record<string, unknown>): 
 				const node = await nodeById(a.id);
 				if (!node) return { ok: false, error: `нода ${a.id} не найдена` };
 				let spec = serialize(node, a.depth, a.maxNodes) as Spec;
+				// expand: собственные слои экземпляра (с id, текстами и оверрайдами) вместо заглушки
+				if (a.expand && node.type === "INSTANCE") {
+					const kids: Spec[] = [];
+					for (const ch of (node as InstanceNode).children.slice(0, 60)) {
+						const s = serializeNode(ch as SceneNode, 1) as Spec | null;
+						if (s) kids.push(s);
+					}
+					spec = { ...spec, children: kids };
+				}
 				spec = mergeExtras(spec, await collectExtras(node, a.maxNodes + 100, a.boxes, true));
+				// дерево обрезано лимитом: отдаём id обрезанных веток — их дозапрашивают по отдельности
+				if (state.dropped.length && typeof spec === "object" && spec)
+					(spec as Record<string, unknown>).truncated = { count: state.dropped.length, droppedIds: [...state.dropped] };
 				if (a.compact || a.format === "css") spec = compactSpec(spec);
 				if (a.format === "css") return { ok: true, data: { id: node.id, name: node.name, format: "css", html: toCss(spec) } };
 				return { ok: true, data: spec };

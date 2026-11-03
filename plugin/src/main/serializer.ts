@@ -227,7 +227,12 @@ export function serializeNode(node: SceneNode, depth: number): AnySpec | null {
 }
 
 function serializeBase(node: SceneNode, depth: number): AnySpec | null {
-	if (depth > maxDepth || state.serializedNodes >= maxNodes) {
+	if (state.serializedNodes >= maxNodes) {
+		// лимит нод: запоминаем корни обрезанных веток — агент дозапросит их по id
+		if (state.dropped.length < 40) state.dropped.push(node.id);
+		return null;
+	}
+	if (depth > maxDepth) {
 		return null;
 	}
 	state.serializedNodes++;

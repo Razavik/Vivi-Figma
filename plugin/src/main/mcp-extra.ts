@@ -254,7 +254,22 @@ export async function runComponentize(args: Record<string, unknown>): Promise<Wr
 				} else if (hasImage(a) && "fills" in b) {
 					b.fills = (a as GeometryMixin).fills as Paint[];
 				}
-				// различия вида (цвет текста и фона, обводка) переносим локальной правкой экземпляра
+				// различия вида (цвет текста и фона, обводка) переносим локальной правкой экземпляра.
+				// descendants отдаёт глубинный обход без корня, поэтому сюда попадают и слои
+				// внутри экземпляра (b) — векторы звёзд и т.п. — их цвета тоже переезжают.
+				if (a.type !== "TEXT" && b.type === "TEXT") {
+					// стекловидность: экземпляр свернётся, заливка не применится — переносим цветом текста
+					const t = a as unknown as TextNode;
+					if (typeof t.characters === "string") {
+						const paint = (t.fills as readonly Paint[] | PluginAPI["mixed"]);
+						const solid = Array.isArray(paint) ? (paint as readonly Paint[]).find((p) => p.type === "SOLID") : null;
+						if (solid) {
+							const alpha = "opacity" in a ? ((a as SceneNode as { opacity?: number }).opacity ?? 1) * (solid.opacity ?? 1) : solid.opacity ?? 1;
+							b.fills = [{ type: "SOLID", color: (solid as SolidPaint).color, opacity: alpha }] as unknown as readonly Paint[];
+						}
+					}
+					continue;
+				}
 				if ("fills" in a && "fills" in b && !hasImage(a) && JSON.stringify(a.fills) !== JSON.stringify(b.fills)) b.fills = a.fills as Paint[];
 				if ("strokes" in a && "strokes" in b && JSON.stringify(a.strokes) !== JSON.stringify(b.strokes)) b.strokes = a.strokes as Paint[];
 			}

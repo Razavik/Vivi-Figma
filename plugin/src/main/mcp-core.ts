@@ -33,6 +33,8 @@ export interface NodeArgs {
 	depth: number;
 	maxNodes: number;
 	compact: boolean;
+	// expand: раскрыть собственных детей экземпляра (а не только устройство главного компонента)
+	expand: boolean;
 	boxes: boolean;
 	format: "json" | "css";
 }
@@ -45,6 +47,7 @@ export function nodeArgs(args: Record<string, unknown>): NodeArgs | null {
 		depth: clampInt(args.depth, 1, 12, 6),
 		maxNodes: clampInt(args.maxNodes, 10, 600, 300),
 		compact: args.compact !== false,
+		expand: args.expand === true,
 		boxes: args.boxes !== false,
 		format: args.format === "css" ? "css" : "json",
 	};
