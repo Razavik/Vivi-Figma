@@ -163,11 +163,12 @@ export const MCP_TOOLS_WRITE = {
 			'Create a Component Set with states in ONE call (button Default/Hover/Pressed, accordion Closed/Open, tab Active/Inactive, size or type variants): "base" is the frame spec of the component (name its text layers, e.g. "Label"), each variant gives props ({"Type":"Primary","State":"Hover"}), optional "set" (fields of the root to change, e.g. {"fill":"#8F430A"}) and "children" (changes by layer name, e.g. {"Label":{"color":"#fff"}}). Components land in the top-level "Components" frame; hover/press/click interactions are wired automatically (Default to Hover, Default to Pressed, or two states click both ways; "none" or an explicit list to change). "replace" swaps loose copies on the page for instances of a chosen variant with text overrides. Same checks and result as figma_edit; undo with figma_undo. Use it for every interactive element and repeated control (see figma_guide process, components).',
 		input: {
 			name: z.string().describe('Set name, e.g. "Button/Primary"'),
-			base: z.object({ type: z.literal("frame") }).passthrough().describe("Component frame spec; text layers that change should have explicit names"),
+			base: z.object({ type: z.literal("frame") }).passthrough().optional().describe("Component frame spec (needed when variants have no id); text layers that change should have explicit names"),
 			variants: z
 				.array(
 					z.object({
-						props: z.record(z.string(), z.string()).describe('{"State":"Default"}; same keys in every variant'),
+						id: z.string().optional().describe("Existing frame id: the variant IS this block (copied into the library, the original is replaced by an instance). All variants must give id, or none"),
+					props: z.record(z.string(), z.string()).describe('{"State":"Default"}; same keys in every variant'),
 						set: z.record(z.string(), z.any()).optional().describe("Fields of the root frame to override for this variant"),
 						children: z.record(z.string(), z.record(z.string(), z.any())).optional().describe('Changes by layer name: {"Label":{"color":"#FFFFFF"}}'),
 					}),

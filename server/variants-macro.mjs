@@ -76,7 +76,9 @@ function explicitInteractions(keys, list, rules) {
 export function variantEdits(args) {
 	const { name, base, variants } = args || {};
 	if (typeof name !== "string" || !name.trim()) throw new Error("name: нужно имя набора, например «Button/Primary»");
-	if (!base || base.type !== "frame") throw new Error("base: корень описания должен быть frame");
+	const byId = variants.some((v) => typeof v?.id === "string" && v.id);
+	if (byId && variants.some((v) => typeof v?.id !== "string" || !v.id)) throw new Error("variants: либо у всех вариантов id существующего блока, либо ни у одного (base + set/children)");
+	if (!byId && (!base || base.type !== "frame")) throw new Error("base: корень описания должен быть frame");
 	if (!Array.isArray(variants) || variants.length < 2) throw new Error("variants: нужно минимум 2 варианта");
 	const keys = Object.keys(variants[0].props || {});
 	if (!keys.length) throw new Error('props: у варианта нужны свойства, например {"State":"Default"}');
@@ -91,16 +93,23 @@ export function variantEdits(args) {
 	}
 	const edits = [];
 	variants.forEach((v, i) => {
-		const node = cloneJson(base);
-		node.component = true;
-		node.name = variantName(keys, v.props);
-		if (v.set) Object.assign(node, cloneJson(v.set));
-		for (const [layer, patch] of Object.entries(v.children || {})) {
-			const target = findByName(node, layer);
-			if (!target || target === node) throw new Error(`children: в base нет слоя «${layer}» (вариант ${node.name})`);
-			Object.assign(target, cloneJson(patch));
+		if (byId) {
+			// Вариант — существующий блок: копия в «Components» → компонент → имя Key=Value.
+			// Оригинал ниже заменяется экземпляром (swap) — в дизайне остаются только экземпляры.
+			edits.push({ op: "duplicate", id: v.id, parent: "$components", as: `v${i}`, name: variantName(keys, v.props) });
+			edits.push({ op: "make_component", id: `$v${i}` });
+		} else {
+			const node = cloneJson(base);
+			node.component = true;
+			node.name = variantName(keys, v.props);
+			if (v.set) Object.assign(node, cloneJson(v.set));
+			for (const [layer, patch] of Object.entries(v.children || {})) {
+				const target = findByName(node, layer);
+				if (!target || target === node) throw new Error(`children: в base нет слоя «${layer}» (вариант ${node.name})`);
+				Object.assign(target, cloneJson(patch));
+			}
+			edits.push({ op: "insert", parent: "$components", as: `v${i}`, node });
 		}
-		edits.push({ op: "insert", parent: "$components", as: `v${i}`, node });
 	});
 	edits.push({ op: "combine_variants", ids: variants.map((_, i) => `$v${i}`), name: name.trim(), as: "set" });
 	const mode = args.interactions === undefined ? "auto" : args.interactions;
@@ -111,6 +120,9 @@ export function variantEdits(args) {
 			id: `$v${l.from}`,
 			interactions: l.interactions.map((x) => ({ ...x, target: `$v${x.target}` })),
 		});
+	if (byId)
+		for (let i = 0; i < variants.length; i++)
+			edits.push({ op: "swap", id: variants[i].id, component: "$set", variants: variants[i].props });
 	for (const r of args.replace || []) {
 		if (!r.id) throw new Error("replace: у записи нужен id заменяемого узла");
 		edits.push({ op: "swap", id: r.id, component: "$set", variants: r.variants || variants[0].props, ...(r.overrides ? { overrides: r.overrides } : {}), ...(r.w !== undefined ? { w: r.w } : {}), ...(r.h !== undefined ? { h: r.h } : {}), ...(r.name ? { name: r.name } : {}) });

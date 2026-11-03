@@ -140,3 +140,25 @@ test("children по имени слоя: неизвестный слой — о�
 	});
 	assert.equal(ops[1].node.children[0].color, "#fff");
 });
+
+test("варианты из существующих блоков: duplicate → make_component → swap оригиналов", () => {
+	const ops = variantEdits({
+		name: "Chip",
+		variants: [
+			{ id: "10:1", props: { Icon: "Clock" } },
+			{ id: "10:2", props: { Icon: "Collect" } },
+		],
+	});
+	assert.equal(ops[0].op, "duplicate");
+	assert.equal(ops[0].parent, "$components");
+	assert.equal(ops[0].name, "Icon=Clock");
+	assert.equal(ops[1].op, "make_component");
+	assert.equal(ops[1].id, "$v0");
+	assert.deepEqual(ops[4].ids, ["$v0", "$v1"]); // combine_variants
+	assert.deepEqual(ops.filter((o) => o.op === "swap").map((o) => o.id), ["10:1", "10:2"]);
+	assert.deepEqual(ops.filter((o) => o.op === "swap")[0].variants, { Icon: "Clock" });
+	assert.throws(
+		() => variantEdits({ name: "X", variants: [{ id: "10:1", props: { S: "A" } }, { props: { S: "B" } }] }),
+		/либо у всех вариантов id/,
+	);
+});

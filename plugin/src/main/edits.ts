@@ -394,6 +394,9 @@ export async function applyEditOp(
 		const component = figma.createComponentFromNode(node);
 		if (typeof op.name === "string" && op.name.trim())
 			component.name = op.name.trim();
+		// createComponentFromNode меняет id ноды: алиасы ($v0 и т.п.) должны
+		// указывать на новый компонент, иначе следующие ops не найдут его.
+		for (const [name, id] of aliases) if (id === node.id) aliases.set(name, component.id);
 		let message = `make_component: ${op.id} → новый id компонента ${component.id}`;
 		if (into && origin && into !== origin) {
 			const instance = component.createInstance();
