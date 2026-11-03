@@ -36,6 +36,9 @@
 		"build": "npm --prefix plugin run build",
 		"start": "node server/index.mjs",
 		"typecheck": "npm --prefix plugin run typecheck",
+		"test": "npm --prefix server test && npm --prefix plugin test",
+		"test:server": "npm --prefix server test",
+		"test:plugin": "npm --prefix plugin test",
 		"prepublishOnly": "node scripts/build-icons.mjs && npm --prefix plugin install && npm --prefix plugin run build",
 		"build:icons": "node scripts/build-icons.mjs"
 	},
