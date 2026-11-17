@@ -1,13 +1,12 @@
 // HTML → спека Vivi: Chromium считает CSS и выполняет приложение, Figma получает
 // редактируемые слои с координатами зафиксированного состояния страницы.
-import { readFile, realpath, stat } from "node:fs/promises";
+import { readFile, realpath } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, extname, isAbsolute, resolve, sep } from "node:path";
 import { chromium } from "playwright";
-import { MAX_NODES, MAX_SPEC_BYTES, validateSpec } from "./design-pipeline.mjs";
+import { validateSpec } from "./design-pipeline.mjs";
 
 const ORIGIN = "https://vivi-import.invalid";
-const MAX_SOURCE = 2 * 1024 * 1024;
 const MIME = { ".html": "text/html", ".htm": "text/html", ".css": "text/css", ".js": "text/javascript", ".mjs": "text/javascript", ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".gif": "image/gif", ".woff": "font/woff", ".woff2": "font/woff2", ".ttf": "font/ttf" };
 
 // realpath закрывает выход через ../ и симлинки; локальные ресурсы доступны
@@ -17,15 +16,12 @@ export async function localImportFile(path, roots) {
 	const full = await realpath(isAbsolute(path) ? path : resolve(roots[0], path));
 	const allowed = await Promise.all(roots.map((r) => realpath(r).catch(() => resolve(r))));
 	if (!allowed.some((r) => full === r || full.startsWith(r.endsWith(sep) ? r : r + sep))) throw new Error("HTML: файл вне проекта");
-	if ((await stat(full)).size > MAX_SOURCE) throw new Error("HTML: ресурс больше 2 МБ");
 	return full;
 }
 
 export function checkHtmlInput(args) {
 	if ([args.html, args.path, args.url].filter((v) => typeof v === "string" && v.trim()).length !== 1)
 		throw new Error("HTML: укажите ровно один источник — html, path или url");
-	if (args.html && Buffer.byteLength(args.html) > MAX_SOURCE) throw new Error("HTML: исходник больше 2 МБ");
-	if (args.css && Buffer.byteLength(args.css) > MAX_SOURCE) throw new Error("HTML: CSS больше 2 МБ");
 	if (args.url && !["http:", "https:"].includes(new URL(args.url).protocol)) throw new Error("HTML: url должен быть http:// или https://");
 }
 
@@ -33,10 +29,10 @@ export async function htmlToDesign(args, { roots = [], executablePath = process.
 	checkHtmlInput(args);
 	const width = args.width ?? 1440;
 	const height = args.height ?? 900;
-	const maxNodes = args.maxNodes ?? MAX_NODES;
+	const maxNodes = args.maxNodes;
 	if (!Number.isInteger(width) || width < 320 || width > 4096 || !Number.isInteger(height) || height < 200 || height > 4096)
 		throw new Error("HTML: width 320–4096, height 200–4096");
-	if (!Number.isInteger(maxNodes) || maxNodes < 1 || maxNodes > MAX_NODES) throw new Error(`HTML: maxNodes 1–${MAX_NODES}`);
+	if (maxNodes !== undefined && (!Number.isInteger(maxNodes) || maxNodes < 1)) throw new Error("HTML: maxNodes должен быть положительным целым числом");
 	if (!Number.isInteger(args.waitMs ?? 0) || (args.waitMs ?? 0) < 0 || (args.waitMs ?? 0) > 10_000) throw new Error("HTML: waitMs 0–10000");
 	if (!Number.isFinite(args.deviceScaleFactor ?? 1) || (args.deviceScaleFactor ?? 1) < 1 || (args.deviceScaleFactor ?? 1) > 3) throw new Error("HTML: deviceScaleFactor 1–3");
 	const sourcePath = args.path ? await localImportFile(args.path, roots) : null;
@@ -56,12 +52,6 @@ export async function htmlToDesign(args, { roots = [], executablePath = process.
 	} catch (err) {
 		throw new Error(`HTML: не удалось запустить Chromium. Выполните npx playwright install chromium (или задайте VIVI_CHROMIUM_EXECUTABLE). ${err.message}`);
 	}
-	// Закрытие браузера также прерывает зависший JS/evaluate; у evaluate нет timeout.
-	let expired = false;
-	const watchdog = setTimeout(() => {
-		expired = true;
-		void browser.close().catch(() => {});
-	}, 60_000);
 	try {
 		const userAgent = args.userAgent || (args.isMobile ? `Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${browser.version()} Mobile Safari/537.36` : undefined);
 		const context = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: args.deviceScaleFactor ?? 1, isMobile: args.isMobile ?? false, hasTouch: args.isMobile ?? false, userAgent, javaScriptEnabled: args.javascript !== false, bypassCSP: true, serviceWorkers: "block", acceptDownloads: false, reducedMotion: "reduce", colorScheme: args.colorScheme ?? "light" });
@@ -100,8 +90,9 @@ export async function htmlToDesign(args, { roots = [], executablePath = process.
 			document.documentElement.append(style);
 		}, args.css);
 		if (args.scroll) {
-			// Прогреваем lazy-load без бесконечного обхода infinite scroll.
-			for (let step = 0; step < 20; step++) {
+			// Cover the entire initial document, without chasing an infinite feed.
+			const extent = await page.evaluate(() => document.documentElement.scrollHeight);
+			for (let offset = 0; offset < extent; offset += height) {
 				const done = await page.evaluate(() => {
 					const before = scrollY;
 					scrollBy(0, innerHeight);
@@ -109,7 +100,6 @@ export async function htmlToDesign(args, { roots = [], executablePath = process.
 				});
 				await page.waitForTimeout(100);
 				if (done) break;
-				if (step === 19) warnings.add("Lazy-load: прокрутка ограничена 20 экранами; бесконечный список импортирован частично.");
 			}
 			await page.evaluate(() => scrollTo(0, 0));
 		}
@@ -123,7 +113,9 @@ export async function htmlToDesign(args, { roots = [], executablePath = process.
 			document.documentElement.append(style);
 		});
 		const captureKey = `data-vivi-${Math.random().toString(36).slice(2)}`;
-		const result = await page.evaluate(snapshotDOM, { selector: args.selector, name: args.name, maxNodes, captureKey, autoLayout: args.autoLayout !== false });
+		// Return JSON text: Playwright's object serializer has its own shallow
+		// reference-chain limit, independent of the number of imported layers.
+		const result = JSON.parse(await page.evaluate(snapshotDOM, { selector: args.selector, name: args.name, maxNodes, captureKey, autoLayout: args.autoLayout !== false }));
 		for (const note of result.warnings) warnings.add(note);
 		const assets = [];
 		function collect(node) {
@@ -137,7 +129,6 @@ export async function htmlToDesign(args, { roots = [], executablePath = process.
 			for (const child of node.children || []) collect(child);
 		}
 		collect(result.spec);
-		let bytes = 0;
 		let backgroundPage;
 		for (const asset of assets) {
 			try {
@@ -188,8 +179,6 @@ export async function htmlToDesign(args, { roots = [], executablePath = process.
 					}, data);
 					if (jpeg && jpeg.length < data.length) { data = jpeg; mime = "image/jpeg"; size = Buffer.byteLength(jpeg, "base64"); }
 				}
-				if (bytes + size > MAX_SPEC_BYTES / 2) throw new Error("изображения превысили бюджет 3 МБ");
-				bytes += size;
 				asset.node.data = data;
 				asset.node.mime = mime;
 			} catch (err) {
@@ -198,14 +187,10 @@ export async function htmlToDesign(args, { roots = [], executablePath = process.
 				warnings.add(`Изображение «${asset.node.name}» заменено заглушкой: ${err.message.slice(0, 120)}`);
 			}
 		}
-		const bad = validateSpec(result.spec);
+		const bad = validateSpec(result.spec, { limits: false });
 		if (bad) throw new Error(bad);
 		return { spec: result.spec, warnings: [...warnings].slice(0, 40), source: { url: args.url || null, viewport: { width, height }, isMobile: args.isMobile ?? false, deviceScaleFactor: args.deviceScaleFactor ?? 1, javascript: args.javascript !== false, nodes: result.count, layout: result.layout } };
-	} catch (err) {
-		if (expired) throw new Error("HTML: импорт превысил 60 секунд. Выберите меньший блок через selector или сократите ожидание.");
-		throw err;
 	} finally {
-		clearTimeout(watchdog);
 		await browser.close();
 	}
 }
@@ -218,26 +203,24 @@ async function snapshotDOM({ selector, name, maxNodes, captureKey, autoLayout })
 	const assets = [];
 	const cssLayers = new WeakMap();
 	let count = 0;
-	let characters = 0;
 	const skip = new Set(["SCRIPT", "STYLE", "LINK", "META", "NOSCRIPT", "TEMPLATE", "HEAD"]);
 	const svgDocuments = new Map();
 	const documentUrl = new URL(location.href); documentUrl.hash = "";
 	svgDocuments.set(documentUrl.href, document);
 	const useHref = (el) => el.getAttribute("href") || el.getAttributeNS("http://www.w3.org/1999/xlink", "href") || "";
 	let pendingUses = [...root.querySelectorAll("svg use")].map((el) => ({ el, base: document.baseURI }));
-	for (let depth = 0; depth < 8 && pendingUses.length; depth++) {
+	while (pendingUses.length) {
 		const urls = new Set();
 		for (const { el, base } of pendingUses) {
 			try { const url = new URL(useHref(el), base); url.hash = ""; if (!svgDocuments.has(url.href)) urls.add(url.href); } catch {}
 		}
 		pendingUses = [];
-		await Promise.all([...urls].slice(0, 32).map(async (url) => {
+		await Promise.all([...urls].map(async (url) => {
 			svgDocuments.set(url, null);
 			try {
 				const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
 				if (!response.ok) throw new Error(String(response.status));
 				const text = await response.text();
-				if (text.length > 2 * 1024 * 1024) throw new Error("SVG слишком большой");
 				const doc = new DOMParser().parseFromString(text, "image/svg+xml");
 				if (doc.querySelector("parsererror")) throw new Error("Некорректный SVG");
 				svgDocuments.set(url, doc);
@@ -251,7 +234,7 @@ async function snapshotDOM({ selector, name, maxNodes, captureKey, autoLayout })
 			try { url = new URL(useHref(use), base); } catch { continue; }
 			const id = decodeURIComponent(url.hash.slice(1)), key = url.href; url.hash = "";
 			const target = svgDocuments.get(url.href)?.getElementById(id);
-			if (!target || seen.has(key) || seen.size >= 8) {
+			if (!target || seen.has(key)) {
 				warnings.add("SVG: не удалось встроить <use> " + key); continue;
 			}
 			const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
@@ -273,7 +256,7 @@ async function snapshotDOM({ selector, name, maxNodes, captureKey, autoLayout })
 	const round = (v) => Math.round(v * 100) / 100;
 	const n = (v) => parseFloat(v) || 0;
 	function take(node) {
-		if (++count > maxNodes) throw new Error(`HTML: больше ${maxNodes} слоёв — выберите меньший блок через selector`);
+		count++;
 		return node;
 	}
 	function color(value) {
@@ -300,7 +283,6 @@ async function snapshotDOM({ selector, name, maxNodes, captureKey, autoLayout })
 		const lines = [];
 		const range = document.createRange();
 		for (let i = 0; i < text.length; i++) {
-			if (++characters > 100_000) throw new Error("HTML: слишком много текста — выберите блок через selector");
 			range.setStart(text, i);
 			range.setEnd(text, i + 1);
 			const b = range.getBoundingClientRect();
@@ -349,7 +331,6 @@ async function snapshotDOM({ selector, name, maxNodes, captureKey, autoLayout })
 		}).sort((a, b) => a.phase - b.phase || a.z - b.z || a.order - b.order || a.index - b.index).map((entry) => entry.child);
 	}
 	function walk(el, origin, depth = 0, clip = null) {
-		if (depth > 60) throw new Error("HTML: дерево глубже 60 уровней — выберите блок через selector");
 		if (skip.has(el.tagName)) return [];
 		const c = getComputedStyle(el);
 		if (c.display === "none" || c.contentVisibility === "hidden" || n(c.opacity) === 0) return [];
@@ -368,7 +349,6 @@ async function snapshotDOM({ selector, name, maxNodes, captureKey, autoLayout })
 		const box = { name: label.slice(0, 100), x: round(b.x - origin.x), y: round(b.y - origin.y), w: round(Math.max(0.01, b.width)), h: round(Math.max(0.01, b.height)) };
 		if (["IMG", "CANVAS", "VIDEO"].includes(el.tagName)) {
 			if (c.visibility !== "visible" || outsideClip || b.width <= 0 || b.height <= 0) return [];
-			if (assets.length >= 40) throw new Error("HTML: больше 40 изображений — импортируйте по секциям");
 			const index = assets.length;
 			const node = take({ type: "image", ...box, fit: "fill", captureIndex: index, captureSize: { w: box.w, h: box.h } });
 			if (el.tagName === "IMG") {
@@ -413,7 +393,6 @@ async function snapshotDOM({ selector, name, maxNodes, captureKey, autoLayout })
 				if (sides.some((s) => c[`border${s}Color`] !== c[`border${sides[0]}Color`] || n(c[`border${s}Width`]) !== node.strokeWidth)) warnings.add("Разные цвета/толщины сторон рамки упрощены до первой стороны.");
 			}
 			if (c.backgroundImage !== "none" && !outsideClip && b.width > 0 && b.height > 0) {
-				if (assets.length >= 40) throw new Error("HTML: больше 40 изображений — импортируйте по секциям");
 				const index = assets.length;
 				el.setAttribute(captureKey, String(index));
 				const backgroundStyles = {};
@@ -748,5 +727,6 @@ async function snapshotDOM({ selector, name, maxNodes, captureKey, autoLayout })
 	delete spec.y;
 	count = 0;
 	(function recount(node) { count++; for (const child of node.children || []) recount(child); })(spec);
-	return { spec, count, layout, warnings: [...warnings] };
+	if (maxNodes !== undefined && count > maxNodes) throw new Error(`HTML: больше ${maxNodes} слоёв — задан maxNodes (итог ${count})`);
+	return JSON.stringify({ spec, count, layout, warnings: [...warnings] });
 }

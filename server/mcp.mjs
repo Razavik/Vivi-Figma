@@ -89,7 +89,7 @@ function connectOnce() {
 	opening = new Promise((resolve, reject) => {
 		const url = new URL(`ws://127.0.0.1:${PORT}/`);
 		url.searchParams.set("role", "mcp");
-		const ws = new WebSocket(url);
+		const ws = new WebSocket(url, { maxPayload: 0 });
 		ws.on("open", () => {
 			socket = ws;
 			opening = null;
@@ -259,7 +259,7 @@ for (const [name, def] of Object.entries(MCP_TOOLS)) {
 				}
 				if (def.prepare) {
 					const payload = name === "create" ? resolved.args.spec : resolved.args.edits;
-					const bad = validateSpec(payload);
+					const bad = validateSpec(payload, { limits: !importedSpecs.has(payload) });
 					if (bad) throw new Error(bad);
 					applyLayoutDefaults(payload);
 					if (!importedSpecs.has(payload)) prepared = await prepareDesign(payload, { roots: EXPORT.roots });

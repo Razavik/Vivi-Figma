@@ -30,14 +30,14 @@ function* nodesOf(value) {
 }
 
 // Возвращает текст ошибки или null.
-export function validateSpec(value) {
+export function validateSpec(value, { limits = true } = {}) {
 	let count = 0;
 	for (const n of nodesOf(value)) {
 		count++;
 		if (!NODE_TYPES.has(n.type) && !BLOCK_TYPES.has(n.type)) return `неизвестный тип ноды «${n.type}». Допустимо: ${[...NODE_TYPES].join(", ")}`;
 	}
-	if (count > MAX_NODES) return `слишком много нод в одном вызове (${count} > ${MAX_NODES}): стройте страницу по секциям`;
-	if (Buffer.byteLength(JSON.stringify(value)) > MAX_SPEC_BYTES) return "спека слишком большая (> 6 МБ) — разбейте на части";
+	if (limits && count > MAX_NODES) return `слишком много нод в одном вызове (${count} > ${MAX_NODES}): стройте страницу по секциям`;
+	if (limits && Buffer.byteLength(JSON.stringify(value)) > MAX_SPEC_BYTES) return "спека слишком большая (> 6 МБ) — разбейте на части";
 	return null;
 }
 

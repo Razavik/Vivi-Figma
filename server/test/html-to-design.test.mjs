@@ -11,8 +11,24 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { fileURLToPath } from "node:url";
 import { PNG } from "pngjs";
+import { validateSpec } from "../design-pipeline.mjs";
 
 const flatten = (n) => [n, ...(n.children || []).flatMap(flatten)];
+
+test("HTML: no default node/image/depth/spec-size limits", async () => {
+	const pixel = new PNG({ width: 1, height: 1 }); pixel.data.set([255, 0, 0, 255]);
+	const src = "data:image/png;base64," + PNG.sync.write(pixel).toString("base64");
+	const html = '<style>body{margin:0}div{height:1px}img{width:8px;height:8px}</style><main>' + '<div></div>'.repeat(610) + '<section>'.repeat(70) + 'Deep' + '</section>'.repeat(70) + `<img src="${src}">`.repeat(42) + '</main>';
+	const result = await htmlToDesign({ html, width: 320 });
+	assert.ok(result.source.nodes > 600);
+	assert.equal(flatten(result.spec).filter((node) => node.type === "image").length, 42);
+	assert.ok(!result.warnings.some((warning) => warning.includes("заглушкой")), result.warnings.join("\n"));
+	assert.ok(MCP_TOOLS.html_to_design.input.maxNodes.safeParse(10000).success);
+	const large = { type: "frame", children: [{ type: "text", text: "x".repeat(7 * 1024 * 1024) }] };
+	assert.equal(validateSpec(large, { limits: false }), null);
+	assert.ok(validateSpec(large));
+	await assert.rejects(htmlToDesign({ html: "<main><div>A</div><div>B</div></main>", selector: "main", maxNodes: 1 }), /maxNodes/);
+});
 
 test("HTML images: opaque photos compress, alpha stays PNG, clipped/zero-size assets are skipped", async () => {
 	const noisy = new PNG({ width: 256, height: 256 });
@@ -283,11 +299,12 @@ test("HTML: MCP dry без плагина, запись через create и rea
 		assert.ok(!dry.isError, JSON.stringify(dry));
 		assert.equal(calls.length, 0);
 		assert.equal(JSON.parse(dry.content[0].text).spec.w, 390);
-		const write = await client.callTool({ name: "figma_html_to_design", arguments: { html: "<main>Текст 🚀</main>", width: 390, file: "Import test", quiet: true } });
+		const write = await client.callTool({ name: "figma_html_to_design", arguments: { html: "<main>Текст 🚀" + "<div></div>".repeat(610) + "</main>", width: 390, file: "Import test", quiet: true } });
 		assert.ok(!write.isError, JSON.stringify(write));
 		const create = calls.find((c) => c.tool === "create");
 		assert.ok(create);
 		assert.ok(flatten(create.args.spec).some((n) => n.text?.includes("🚀")));
+		assert.ok(flatten(create.args.spec).length > 600);
 		readonly = await makeClient(true);
 		assert.ok(!(await readonly.listTools()).tools.some((t) => t.name === "figma_html_to_design"));
 	} finally {
