@@ -1,5 +1,5 @@
 // UI плагина (MCP-версия): держит WebSocket к мосту и передаёт вызовы MCP
-// в main-код плагина и обратно. Показывает только состояние моста.
+// в main-код плагина и обратно. Ручной импорт — отдельная форма.
 import type { BridgeMessage, HtmlImport } from "../../../shared/protocol";
 
 const WS_URL = "ws://localhost:8787";
@@ -14,7 +14,86 @@ const result = document.getElementById("import-result") as HTMLElement;
 const warningBox = document.getElementById("warnings") as HTMLDetailsElement;
 const warningList = document.getElementById("warning-list") as HTMLElement;
 const input = (id: string) => document.getElementById(id) as HTMLInputElement;
-const preset = document.getElementById("preset") as HTMLSelectElement;
+const preset = input("preset");
+const urlInput = input("url");
+const advanced = document.getElementById("advanced") as HTMLDetailsElement;
+const dropdown = document.getElementById("preset-dropdown") as HTMLElement;
+const trigger = document.getElementById("preset-trigger") as HTMLButtonElement;
+const presetLabel = document.getElementById("preset-label") as HTMLElement;
+const presetList = document.getElementById("preset-list") as HTMLElement;
+const options = Array.from(presetList.querySelectorAll<HTMLButtonElement>("[role=option]"));
+let activeOption = 0;
+
+const windowToggle = document.getElementById("toggle-window") as HTMLButtonElement;
+const importPanel = document.getElementById("import-panel") as HTMLElement;
+windowToggle.onclick = () => {
+	const collapsed = !importPanel.hidden;
+	closeDropdown();
+	importPanel.hidden = collapsed;
+	document.body.classList.toggle("collapsed", collapsed);
+	windowToggle.setAttribute("aria-expanded", String(!collapsed));
+	const label = collapsed ? "Развернуть плагин" : "Свернуть плагин";
+	windowToggle.setAttribute("aria-label", label);
+	windowToggle.title = label;
+	parent.postMessage({ pluginMessage: { type: "set_ui_collapsed", collapsed } }, "*");
+};
+
+function highlightOption(index: number): void {
+	activeOption = index;
+	for (const [i, option] of options.entries()) option.classList.toggle("active", i === index);
+	trigger.setAttribute("aria-activedescendant", options[index].id);
+}
+
+function closeDropdown(): void {
+	presetList.hidden = true;
+	trigger.setAttribute("aria-expanded", "false");
+	trigger.removeAttribute("aria-activedescendant");
+}
+
+function openDropdown(): void {
+	if (trigger.disabled) return;
+	presetList.hidden = false;
+	trigger.setAttribute("aria-expanded", "true");
+	highlightOption(Math.max(0, options.findIndex((option) => option.dataset.value === preset.value)));
+}
+
+function selectPreset(value: string): void {
+	preset.value = value;
+	for (const option of options) {
+		const selected = option.dataset.value === value;
+		option.setAttribute("aria-selected", String(selected));
+		if (selected) presetLabel.textContent = option.firstElementChild?.textContent || "";
+	}
+	const sizes: Record<string, number> = { desktop: 1440, mobile: 390, tablet: 768 };
+	if (sizes[value]) {
+		input("width").value = String(sizes[value]);
+		input("mobile").checked = value !== "desktop";
+	}
+	closeDropdown();
+}
+
+trigger.onclick = () => { if (presetList.hidden) openDropdown(); else closeDropdown(); };
+trigger.onkeydown = (event) => {
+	const open = !presetList.hidden;
+	if (event.key === "Escape") { closeDropdown(); event.preventDefault(); }
+	else if (event.key === "Tab") closeDropdown();
+	else if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+		event.preventDefault();
+		if (!open) openDropdown();
+		if (event.key === "Home") highlightOption(0);
+		else if (event.key === "End") highlightOption(options.length - 1);
+		else if (open) highlightOption((activeOption + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length);
+	} else if (event.key === "Enter" || event.key === " ") {
+		event.preventDefault();
+		if (open) selectPreset(options[activeOption].dataset.value || "custom"); else openDropdown();
+	}
+};
+for (const [index, option] of options.entries()) {
+	option.onclick = () => { selectPreset(option.dataset.value || "custom"); trigger.focus(); };
+	option.onpointermove = () => highlightOption(index);
+}
+document.addEventListener("pointerdown", (event) => { if (!dropdown.contains(event.target as Node)) closeDropdown(); });
+dropdown.addEventListener("focusout", (event) => { if (!dropdown.contains(event.relatedTarget as Node | null)) closeDropdown(); });
 
 let connected = false;
 let supportsImport = false;
@@ -22,42 +101,44 @@ let activeImport: string | null = null;
 
 function updateForm(): void {
 	fields.disabled = activeImport !== null;
+	if (activeImport) closeDropdown();
 	button.disabled = !connected || !supportsImport || activeImport !== null;
-	button.textContent = activeImport ? "Импортируем…" : "Перенести в Figma";
+	button.title = activeImport ? "Импортируем…" : "Перенести в Figma";
+	button.textContent = button.title;
+	button.classList.toggle("busy", activeImport !== null);
 }
 
 function showResult(text: string, state = ""): void {
 	result.textContent = text;
 	result.className = `result ${state}`;
+	result.hidden = !text;
 }
 
-preset.onchange = () => {
-	const sizes: Record<string, [number, number]> = { desktop: [1440, 900], mobile: [390, 844], tablet: [768, 1024] };
-	const size = sizes[preset.value];
-	if (!size) return;
-	input("width").value = String(size[0]);
-	input("height").value = String(size[1]);
-	input("mobile").checked = preset.value !== "desktop";
-};
-for (const id of ["width", "height", "mobile"]) input(id).oninput = () => { preset.value = "custom"; };
+for (const id of ["width", "mobile"]) input(id).oninput = () => selectPreset("custom");
 
 form.onsubmit = (event) => {
 	event.preventDefault();
-	if (!form.reportValidity() || button.disabled || !ws) return;
-	const url = input("url").value.trim();
-	if (!["http:", "https:"].includes(new URL(url).protocol)) {
+	if (button.disabled || !ws) return;
+	if (advanced.querySelector(":invalid")) advanced.open = true;
+	if (!form.reportValidity()) return;
+	const url = urlInput.value.trim();
+	let parsed: URL;
+	try { parsed = new URL(url); }
+	catch { showResult("Укажите полный адрес сайта, например https://example.com", "error"); urlInput.focus(); return; }
+	if (!["http:", "https:"].includes(parsed.protocol)) {
 		showResult("Укажите адрес http:// или https://", "error");
 		return;
 	}
 	const reqId = `import-${Date.now()}`;
 	const message: HtmlImport = {
 		type: "html_import", reqId,
-		args: { url, width: Number(input("width").value), height: Number(input("height").value), isMobile: input("mobile").checked, scroll: input("scroll").checked, waitMs: Number(input("wait-ms").value), ...(input("selector").value.trim() ? { selector: input("selector").value.trim() } : {}), ...(input("wait-for").value.trim() ? { waitFor: input("wait-for").value.trim() } : {}) },
+		args: { url, width: Number(input("width").value), isMobile: input("mobile").checked, autoLayout: input("auto-layout").checked, scroll: input("scroll").checked, waitMs: Number(input("wait-ms").value), ...(input("selector").value.trim() ? { selector: input("selector").value.trim() } : {}), ...(input("wait-for").value.trim() ? { waitFor: input("wait-for").value.trim() } : {}) },
 	};
 	activeImport = reqId;
 	warningBox.hidden = true;
+	warningBox.open = false;
 	warningList.replaceChildren();
-	showResult("Подготавливаем импорт…");
+	showResult("");
 	updateForm();
 	ws.send(JSON.stringify(message));
 };
@@ -90,11 +171,9 @@ function connect(): void {
 			setState(true, "Мост подключён");
 			if (!supportsImport) showResult("Перезапустите локальный мост Vivi, чтобы включить импорт сайтов.", "error");
 		}
-		if (msg.type === "html_import_progress" && msg.reqId === activeImport)
-			showResult(msg.stage === "render" ? "Загружаем сайт и рассчитываем макет…" : "Создаём слои в Figma…");
 		if (msg.type === "html_import_result" && msg.reqId === activeImport) {
 			activeImport = null;
-			showResult(msg.ok ? `Готово! Макет создан${msg.count ? ` · ${msg.count} слоёв` : ""}.` : msg.error || "Не удалось импортировать страницу", msg.ok ? "success" : "error");
+			showResult(msg.ok ? "" : msg.error || "Не удалось импортировать страницу", "error");
 			for (const text of msg.warnings || []) {
 				const li = document.createElement("li");
 				li.textContent = text;

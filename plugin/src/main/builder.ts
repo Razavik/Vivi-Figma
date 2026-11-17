@@ -16,6 +16,7 @@ import {
 	paddingOf,
 } from "./paint";
 import { selectVariant } from "./variants";
+import { applyGridLayout } from "./grid-layout";
 import { BOOL_OPS, shapeSize, shapeSvg, type BoolOp } from "./shapes-core";
 
 const loadedFonts = new Set<string>();
@@ -89,7 +90,10 @@ export function applySizing(
 		// через режим размера самого фрейма (layoutSizing* работает только у детей).
 		if (!inAuto && "layoutMode" in node) {
 			const f = node as unknown as FrameNode;
-			if (f.layoutMode !== "NONE") {
+			if (f.layoutMode === "GRID") {
+				if (spec.w === "hug") f.layoutSizingHorizontal = "HUG";
+				if (spec.h === "hug") f.layoutSizingVertical = "HUG";
+			} else if (f.layoutMode !== "NONE") {
 				const vertical = f.layoutMode === "VERTICAL";
 				if (spec.w === "hug") {
 					if (vertical) f.counterAxisSizingMode = "AUTO";
@@ -357,6 +361,7 @@ async function resolveComponent(ref: string): Promise<BaseNode | null> {
 // Эффекты и поворот — общие для любых нод (сборка и update).
 export function applyLook(node: SceneNode, spec: AnySpec): void {
 	try {
+		if (spec.constraints && "constraints" in node) node.constraints = { ...node.constraints, ...(spec.constraints as Partial<Constraints>) };
 		if ("effects" in node) {
 			const n = node as { effects: readonly Effect[] };
 			applyShadow(n, spec.shadow as Parameters<typeof applyShadow>[1]);
@@ -454,6 +459,7 @@ async function buildBare(
 			if (spec.component === true && typeof spec.name === "string")
 				state.namedComponents.set(spec.name, frame as ComponentNode);
 			frame.clipsContent = spec.clip === true;
+			if (typeof spec.w === "number" && typeof spec.h === "number") frame.resizeWithoutConstraints(Math.max(.01, spec.w), Math.max(.01, spec.h));
 
 			if (spec.layout === "vertical" || spec.layout === "horizontal") {
 				frame.layoutMode =
@@ -476,6 +482,7 @@ async function buildBare(
 					start: "MIN",
 					center: "CENTER",
 					end: "MAX",
+					baseline: "BASELINE",
 				};
 				frame.primaryAxisAlignItems = (mainAlign[String(spec.align)] ||
 					"MIN") as FrameNode["primaryAxisAlignItems"];
@@ -487,6 +494,7 @@ async function buildBare(
 					const row = typeof spec.rowGap === "number" ? spec.rowGap : typeof spec.gap === "number" ? spec.gap : 0;
 					frame.counterAxisSpacing = row;
 				}
+				if (typeof spec.reverseZIndex === "boolean") frame.itemReverseZIndex = spec.reverseZIndex;
 			}
 
 			applyFill(
@@ -510,6 +518,7 @@ async function buildBare(
 			if (typeof spec.opacity === "number") frame.opacity = spec.opacity;
 
 			state.nodeCount++;
+			const builtChildren: { node: SceneNode; spec: AnySpec }[] = [];
 			if (Array.isArray(spec.children)) {
 				const childInAuto = frame.layoutMode !== "NONE";
 				const children = spec.children;
@@ -530,11 +539,14 @@ async function buildBare(
 					const done = state.prebuilt.get(child);
 					if (done && !done.removed) {
 						frame.appendChild(done);
+						builtChildren.push({ node: done, spec: child });
 						continue;
 					}
-					await buildNode(child, frame, childInAuto);
+					const built = await buildNode(child, frame, childInAuto);
+					if (built) builtChildren.push({ node: built, spec: child });
 				}
 			}
+			if (spec.layout === "grid") applyGridLayout(frame, spec, builtChildren);
 			// Размеры применяем ПОСЛЕ детей: HUG/FILL должны считаться
 			// от реального контента, иначе пустой фрейм остаётся 100px.
 			applySizing(frame, spec, applyPosition(frame, spec, inAuto));

@@ -4,6 +4,7 @@ import { extrasOf } from "./extras";
 import { blockSpecFromMeta, patternFillFromData } from "./block-meta";
 import type { AnySpec } from "./canvas-state";
 import { state } from "./canvas-state";
+import { gridSpecOf, gridCellOf } from "./grid-layout";
 import { isBackup } from "./undo";
 import {
 	ALIGN_TO_SPEC,
@@ -106,6 +107,7 @@ type Sizing = "FIXED" | "HUG" | "FILL";
 // Общие свойства: прозрачность, обводка, тень — иначе они терялись бы
 // при пересборке блока агентом.
 function addCommon(base: AnySpec, node: SceneNode): void {
+	if (node.parent && "layoutMode" in node.parent && node.parent.layoutMode === "GRID" && "layoutPositioning" in node && node.layoutPositioning !== "ABSOLUTE") base.gridCell = gridCellOf(node);
 	if ((node as { isMask?: boolean }).isMask) base.mask = true;
 	if ("opacity" in node && node.opacity !== 1) base.opacity = node.opacity;
 	addRotation(base, node);
@@ -347,6 +349,13 @@ function serializeBase(node: SceneNode, depth: number): AnySpec | null {
 					ALIGN_TO_SPEC[frame.primaryAxisAlignItems || "MIN"];
 				base.cross =
 					ALIGN_TO_SPEC[frame.counterAxisAlignItems || "MIN"];
+				const auto = frame as FrameNode;
+				if (auto.layoutWrap === "WRAP") { base.wrap = true; base.rowGap = auto.counterAxisSpacing; }
+				if (auto.itemReverseZIndex) base.reverseZIndex = true;
+			} else if (frame.layoutMode === "GRID") {
+				base.layout = "grid";
+				base.grid = gridSpecOf(frame as FrameNode);
+				base.padding = [frame.paddingTop, frame.paddingRight, frame.paddingBottom, frame.paddingLeft];
 			} else {
 				base.layout = "none";
 			}

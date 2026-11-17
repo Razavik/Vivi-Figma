@@ -5,7 +5,7 @@ import { htmlToDesign } from "./html-to-design.mjs";
 import { MCP_TOOLS } from "./mcp-tools.mjs";
 
 const fields = MCP_TOOLS.html_to_design.input;
-const input = z.object(Object.fromEntries(["url", "width", "height", "isMobile", "waitFor", "waitMs", "selector", "scroll"].map((key) => [key, fields[key]]))).required({ url: true });
+const input = z.object(Object.fromEntries(["url", "width", "isMobile", "autoLayout", "waitFor", "waitMs", "selector", "scroll"].map((key) => [key, fields[key]]))).required({ url: true });
 
 export function createManualImporter({ send, isOpen, convert = htmlToDesign, readonly = process.env.MCP_READONLY === "1" }) {
 	const pending = new Map();
@@ -48,7 +48,7 @@ export function createManualImporter({ send, isOpen, convert = htmlToDesign, rea
 			try {
 				if (readonly) throw new Error("Импорт отключён: мост запущен в режиме только чтения");
 				const parsed = input.safeParse(args);
-				if (!parsed.success) throw new Error("Проверьте URL и размеры: ширина 320–4096, высота 200–4096");
+				if (!parsed.success) throw new Error("Проверьте URL и ширину экрана: 320–4096 px");
 				if (!["http:", "https:"].includes(new URL(parsed.data.url).protocol)) throw new Error("Укажите адрес http:// или https://");
 				const before = await call("status");
 				reply({ type: "html_import_progress", reqId, stage: "render" });

@@ -23,9 +23,15 @@ try {
 }
 
 const PORT = Number(process.env.PORT || 8787);
+const VERSION = JSON.parse(readFileSync(join(serverDir, "..", "package.json"), "utf8")).version;
 
 const relay = createRelay();
-const httpServer = createServer((_req, res) => {
+const httpServer = createServer((req, res) => {
+	if (req.method === "GET" && req.url === "/health") {
+		res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+		res.end(JSON.stringify({ service: "vivi-figma-bridge", version: VERSION, pid: process.pid }));
+		return;
+	}
 	res.writeHead(426, { "content-type": "text/plain; charset=utf-8" });
 	res.end("Vivi MCP bridge: используйте WebSocket\n");
 });

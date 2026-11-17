@@ -2,11 +2,11 @@
 // (например size у иконки или extrabold), и ошибка видна только на скриншоте. Здесь — предупреждения
 // в notes, вызов не отклоняется. Списки щедрые: лучше пропустить опечатку, чем ругаться на рабочее поле.
 
-const BASE = ["type", "id", "name", "x", "y", "w", "h", "opacity", "position", "right", "bottom", "rotation", "layerBlur", "backgroundBlur", "mask", "meta", "pattern", "constraints", "visible", "locked", "group"];
+const BASE = ["type", "id", "name", "x", "y", "w", "h", "opacity", "position", "right", "bottom", "rotation", "layerBlur", "backgroundBlur", "mask", "meta", "pattern", "constraints", "visible", "locked", "group", "gridCell"];
 const VISUAL = ["fill", "stroke", "strokeWidth", "strokeSides", "strokeAlign", "dash", "radius", "shadow", "overlay"];
 
 const FIELDS = {
-	frame: [...BASE, ...VISUAL, "layout", "gap", "rowGap", "padding", "align", "cross", "wrap", "clip", "minW", "maxW", "component", "children", "variants"],
+	frame: [...BASE, ...VISUAL, "layout", "gap", "rowGap", "padding", "align", "cross", "wrap", "clip", "minW", "maxW", "component", "children", "variants", "grid", "reverseZIndex"],
 	text: [...BASE, ...VISUAL, "text", "spans", "fontSize", "fontWeight", "fontFamily", "textStyle", "color", "align", "lineHeight", "letterSpacing", "textCase", "textDecoration", "maxLines", "minW", "maxW"],
 	rect: [...BASE, ...VISUAL],
 	ellipse: [...BASE, ...VISUAL],
@@ -21,7 +21,7 @@ const FIELDS = {
 
 const WEIGHTS = ["thin", "light", "regular", "medium", "semibold", "bold", "extrabold", "black"];
 const ENUMS = {
-	frame: { layout: ["none", "vertical", "horizontal"], align: ["start", "center", "end", "space-between"], cross: ["start", "center", "end"] },
+	frame: { layout: ["none", "vertical", "horizontal", "grid"], align: ["start", "center", "end", "space-between"], cross: ["start", "center", "end", "baseline"] },
 	text: { align: ["left", "center", "right"], textCase: ["upper", "lower", "title", "none"], textDecoration: ["underline", "strike", "none"], fontWeight: WEIGHTS },
 	image: { fit: ["fill", "fit"] },
 	line: { direction: ["horizontal", "vertical"] },

@@ -59,6 +59,8 @@ export interface BaseSpec {
 	meta?: Record<string, unknown>;
 	/** Паттерн-заливка (плитка подставляется сервером из fill:{pattern}). */
 	pattern?: { key: string; svg: string; side: number };
+	gridCell?: { row: number; column: number; rowSpan?: number; columnSpan?: number; horizontalAlign?: "start" | "center" | "end"; verticalAlign?: "start" | "center" | "end" };
+	constraints?: { horizontal?: "MIN" | "CENTER" | "MAX" | "STRETCH" | "SCALE"; vertical?: "MIN" | "CENTER" | "MAX" | "STRETCH" | "SCALE" };
 }
 
 /** Обводка: стороны, положение и пунктир (у frame/rect/ellipse). */
@@ -87,11 +89,14 @@ export interface TextSpan {
 
 export interface FrameSpec extends BaseSpec, StrokeExtras {
 	type: "frame";
-	layout?: "none" | "vertical" | "horizontal";
+	layout?: "none" | "vertical" | "horizontal" | "grid";
 	gap?: number;
+	rowGap?: number;
+	grid?: { columns: { type: "fixed" | "flex" | "hug"; value?: number }[]; rows: { type: "fixed" | "flex" | "hug"; value?: number }[]; columnGap?: number; rowGap?: number };
+	reverseZIndex?: boolean;
 	padding?: number | [number, number, number, number];
 	align?: "start" | "center" | "end" | "space-between";
-	cross?: "start" | "center" | "end";
+	cross?: "start" | "center" | "end" | "baseline";
 	wrap?: boolean;
 	/** Обрезать содержимое по границам фрейма. */
 	clip?: boolean;

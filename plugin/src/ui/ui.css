@@ -1,73 +1,69 @@
-* {
-	box-sizing: border-box;
-}
-body {
-	margin: 0;
-	font: 12px/1.4 Inter, system-ui, sans-serif;
-	color: var(--figma-color-text, #1e1e1e);
-	background: var(--figma-color-bg, #fff);
-}
-.status {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	height: 40px;
-	padding: 0 12px;
-	border-bottom: 1px solid var(--figma-color-border, #e5e5e5);
-}
-.state {
-	font-weight: 600;
-	white-space: nowrap;
-}
-.dot {
-	width: 8px;
-	height: 8px;
-	border-radius: 50%;
-	flex: none;
-	background: var(--figma-color-text-danger, #f24822);
-}
-.dot.on {
-	background: var(--figma-color-text-success, #14ae5c);
-}
-.dot.pulse {
-	animation: pulse 0.6s ease-out;
-}
-main { padding: 16px; }
-h1 { margin: 0 0 6px; font-size: 18px; line-height: 1.3; }
-.intro { margin: 0 0 18px; color: var(--figma-color-text-secondary, #666); }
-fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
-label { display: block; margin: 12px 0 6px; font-weight: 500; }
-fieldset > label:first-child { margin-top: 0; }
-input, select, button { font: inherit; }
-input:not([type="checkbox"]), select {
-	width: 100%; height: 34px; padding: 6px 9px; border-radius: 6px;
-	border: 1px solid var(--figma-color-border, #d4d4d4);
-	color: var(--figma-color-text, #1e1e1e); background: var(--figma-color-bg, #fff);
-}
-input:focus-visible, select:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--figma-color-border-brand, #0d99ff); outline-offset: 2px; }
-.dimensions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.check { display: flex; gap: 8px; align-items: center; font-weight: 400; }
-.check input { margin: 0; accent-color: var(--figma-color-bg-brand, #0d99ff); }
-details { margin: 16px 0; }
-summary { cursor: pointer; color: var(--figma-color-text-secondary, #666); }
-.muted { color: var(--figma-color-text-tertiary, #888); font-weight: 400; }
-button {
-	width: 100%; min-height: 36px; margin-top: 4px; padding: 8px 12px; border: 0; border-radius: 6px;
-	background: var(--figma-color-bg-brand, #0d99ff); color: var(--figma-color-text-onbrand, #fff); font-weight: 600; cursor: pointer;
-}
-button:disabled { opacity: .45; cursor: default; }
+/* Контролы в стиле Vivi Agent; структура интерфейса — форма импорта MCP. */
+* { box-sizing: border-box; margin: 0; }
+[hidden] { display: none !important; }
+html { scrollbar-gutter: stable; overflow-y: auto; }
+body { font: 12px/1.45 "Inter", -apple-system, sans-serif; color: var(--figma-color-text, #1e1e1e); background: var(--figma-color-bg, #fff); }
+#ui-content { display: flow-root; width: 100%; height: auto; min-height: 0; flex: none; }
+.status { display: flex; align-items: center; gap: 6px; height: 40px; padding: 0 10px 0 16px; border-bottom: 1px solid var(--figma-color-border, #e6e6e6); color: var(--figma-color-text-secondary, #7b7b7b); font-size: 10px; }
+#state { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.brand { margin-left: auto; white-space: nowrap; color: var(--figma-color-text-tertiary, #999); }
+.window-toggle { display: grid; place-items: center; flex: none; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--figma-color-text-secondary, #7b7b7b); }
+.window-toggle:hover { background: var(--figma-color-bg-hover, #eee); }
+.window-toggle .expand-icon, .window-toggle[aria-expanded="false"] .collapse-icon { display: none; }
+.window-toggle[aria-expanded="false"] .expand-icon { display: block; }
+.collapsed .brand { display: none; }
+.collapsed .window-toggle { margin-left: auto; }
+.dot { width: 6px; height: 6px; border-radius: 50%; flex: none; background: var(--figma-color-text-danger, #e03e1a); }
+.dot.on { background: var(--figma-color-text-success, #14ae5c); }
+.dot.pulse { animation: pulse .6s ease-out; }
+main { padding: 18px 10px 16px 16px; }
+h1 { font-size: 18px; font-weight: 600; line-height: 1.3; margin-bottom: 6px; }
+.intro { color: var(--figma-color-text-secondary, #7b7b7b); margin-bottom: 18px; }
+.import-card { min-width: 0; padding: 14px; border: 1px solid var(--figma-color-border, #d9d9d9); border-radius: 14px; background: var(--figma-color-bg-secondary, #f5f5f5); }
+label:not(.check) { display: block; margin: 14px 0 6px; font-size: 11px; font-weight: 500; }
+.import-card > label:first-child { margin-top: 0; }
+input:not([type="checkbox"]):not([type="hidden"]), .dropdown-trigger { width: 100%; height: 34px; border: 1px solid var(--figma-color-border, #d9d9d9); border-radius: 8px; background: var(--figma-color-bg, #fff); color: inherit; font: inherit; padding: 7px 10px; }
+input::placeholder { color: var(--figma-color-text-tertiary, #999); }
+button { font: inherit; cursor: pointer; }
+button:disabled { cursor: default; }
+input:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--figma-color-border-selected, #9747ff); outline-offset: 2px; }
+input:focus { border-color: var(--figma-color-border-selected, #9747ff); }
+.field-hint, .footer-hint { font-size: 10px; line-height: 1.5; color: var(--figma-color-text-tertiary, #999); }
+.field-hint { margin-top: 6px; }
+.footer-hint { margin-top: 16px; }
+.check { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 11px; cursor: pointer; }
+.check input { appearance: none; width: 14px; height: 14px; flex: none; border: 1px solid var(--figma-color-border, #c9c9c9); border-radius: 4px; background: var(--figma-color-bg, #fff); cursor: pointer; display: grid; place-items: center; }
+.check input:checked { background: var(--figma-color-bg-brand, #9747ff); border-color: transparent; }
+.check input:checked::after { content: ""; width: 7px; height: 4px; border: solid var(--figma-color-text-onbrand, #fff); border-width: 0 0 1.5px 1.5px; transform: translateY(-1px) rotate(-45deg); }
+.dropdown { position: relative; }
+.dropdown-trigger { display: flex; align-items: center; justify-content: space-between; text-align: left; }
+.dropdown-trigger svg { color: var(--figma-color-text-secondary, #7b7b7b); transition: transform .15s; }
+.dropdown-trigger[aria-expanded="true"] { border-color: var(--figma-color-border-selected, #9747ff); }
+.dropdown-trigger[aria-expanded="true"] svg { transform: rotate(180deg); }
+.dropdown-list { position: absolute; top: calc(100% + 6px); left: 0; width: 100%; padding: 4px; z-index: 10; border: 1px solid var(--figma-color-border, #d9d9d9); border-radius: 10px; background: var(--figma-color-bg, #fff); box-shadow: 0 6px 20px rgba(0,0,0,.16); }
+.dropdown-list button { display: flex; align-items: center; width: 100%; min-height: 34px; padding: 7px 10px; gap: 8px; border: 0; border-radius: 6px; background: transparent; color: inherit; text-align: left; font-size: 11px; }
+.dropdown-list button.active { background: var(--figma-color-bg-secondary, #f5f5f5); }
+.option-meta { margin-left: auto; color: var(--figma-color-text-tertiary, #999); font-size: 10px; }
+.dropdown-list button::after { content: ""; width: 7px; height: 4px; flex: none; border: solid transparent; border-width: 0 0 1.5px 1.5px; transform: translateY(-1px) rotate(-45deg); }
+.dropdown-list button[aria-selected="true"]::after { border-color: var(--figma-color-text-brand, #9747ff); }
+#advanced { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--figma-color-border, #d9d9d9); }
+summary { cursor: pointer; color: var(--figma-color-text-secondary, #7b7b7b); font-size: 11px; }
+#advanced > summary { display: flex; align-items: center; justify-content: space-between; list-style: none; }
+#advanced > summary::-webkit-details-marker { display: none; }
+#advanced > summary svg { transition: transform .15s; }
+#advanced[open] > summary svg { transform: rotate(180deg); }
+.muted { color: var(--figma-color-text-tertiary, #999); font-weight: 400; }
+.primary-button { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 36px; padding: 8px 12px; margin-top: 12px; border: 0; border-radius: 10px; background: var(--figma-color-bg-brand, #9747ff); color: var(--figma-color-text-onbrand, #fff); font-weight: 600; }
+.primary-button:disabled { opacity: .4; }
+.primary-button.busy::before { content: ""; width: 12px; height: 12px; border: 1.5px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; }
 fieldset:disabled { opacity: .65; }
-.result { margin: 12px 0 0; overflow-wrap: anywhere; }
-.result.error { color: var(--figma-color-text-danger, #d92d20); }
-.result.success { color: var(--figma-color-text-success, #198f51); }
-.hint { margin: 16px 0 0; font-size: 11px; color: var(--figma-color-text-tertiary, #888); }
-#warning-list { padding-left: 18px; color: var(--figma-color-text-secondary, #666); overflow-wrap: anywhere; }
-#warning-list li + li { margin-top: 6px; }
-@keyframes pulse {
-	0% {
-		box-shadow: 0 0 0 0 rgba(20, 174, 92, 0.6);
-	}
-	100% {
-		box-shadow: 0 0 0 8px rgba(20, 174, 92, 0);
-	}
-}
+.result { margin-top: 14px; padding: 10px 12px; border: 1px solid var(--figma-color-border, #d9d9d9); border-radius: 10px; color: var(--figma-color-text-secondary, #7b7b7b); overflow-wrap: anywhere; }
+.result.error { color: var(--figma-color-text-danger, #e03e1a); }
+.warnings { margin-top: 12px; }
+#warning-list { padding: 6px 0 0 18px; color: var(--figma-color-text-secondary, #7b7b7b); font-size: 11px; overflow-wrap: anywhere; }
+#warning-list li + li { margin-top: 4px; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: var(--figma-color-border, #d9d9d9); border-radius: 6px; border: 1px solid var(--figma-color-bg, #fff); }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { from { box-shadow: 0 0 0 0 rgba(20,174,92,.6); } to { box-shadow: 0 0 0 7px rgba(20,174,92,0); } }
+@media (prefers-reduced-motion: reduce) { .dot.pulse, .primary-button.busy::before { animation: none; } }

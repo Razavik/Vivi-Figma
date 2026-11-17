@@ -1,50 +1,52 @@
 <!doctype html>
 <html lang="ru">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="stylesheet" href="./ui.css" />
-	</head>
+	<head><meta charset="utf-8" /><link rel="stylesheet" href="./ui.css" /></head>
 	<body>
-		<div class="status">
-			<span id="dot" class="dot"></span>
-			<span id="state" class="state">Подключение к мосту…</span>
-		</div>
-		<main>
+		<div id="ui-content">
+		<header class="status"><span id="dot" class="dot"></span><span id="state">Подключение к мосту…</span><span class="brand">Vivi MCP</span><button id="toggle-window" class="window-toggle" type="button" aria-label="Свернуть плагин" title="Свернуть плагин" aria-expanded="true" aria-controls="import-panel"><svg class="collapse-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 2L6 6M2 6H6V2M14 14L10 10M10 14V10H14" /></svg><svg class="expand-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6L2 2M2 6V2H6M10 10L14 14M10 14H14V10" /></svg></button></header>
+		<main id="import-panel">
 			<h1>Сайт → дизайн</h1>
-			<p class="intro">Вставьте ссылку — страница появится на холсте редактируемыми слоями.</p>
-			<form id="import-form">
-				<fieldset id="import-fields">
+			<p class="intro">Перенесите страницу целиком в редактируемые слои Figma.</p>
+			<form id="import-form" novalidate>
+				<fieldset id="import-fields" class="import-card">
 					<label for="url">Адрес сайта</label>
 					<input id="url" type="url" placeholder="https://example.com" required autocomplete="url" spellcheck="false" />
-					<label for="preset">Размер экрана</label>
-					<select id="preset">
-						<option value="desktop">Десктоп · 1440 × 900</option>
-						<option value="mobile">Телефон · 390 × 844</option>
-						<option value="tablet">Планшет · 768 × 1024</option>
-						<option value="custom">Свой размер</option>
-					</select>
-					<div class="dimensions">
-						<div><label for="width">Ширина, px</label><input id="width" type="number" min="320" max="4096" step="1" value="1440" required /></div>
-						<div><label for="height">Высота, px</label><input id="height" type="number" min="200" max="4096" step="1" value="900" required /></div>
+					<label id="preset-caption" for="preset-trigger">Размер экрана</label>
+					<div id="preset-dropdown" class="dropdown">
+						<input id="preset" type="hidden" value="desktop" />
+						<button id="preset-trigger" class="dropdown-trigger" type="button" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="preset-list" aria-labelledby="preset-caption preset-label"><span id="preset-label">Десктоп</span><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3.5L5 6.5L8 3.5" /></svg></button>
+						<div id="preset-list" class="dropdown-list" role="listbox" aria-labelledby="preset-caption" hidden>
+							<button id="preset-desktop" type="button" role="option" data-value="desktop" aria-selected="true" tabindex="-1"><span>Десктоп</span><span class="option-meta">1440 px</span></button>
+							<button id="preset-mobile" type="button" role="option" data-value="mobile" aria-selected="false" tabindex="-1"><span>Телефон</span><span class="option-meta">390 px</span></button>
+							<button id="preset-tablet" type="button" role="option" data-value="tablet" aria-selected="false" tabindex="-1"><span>Планшет</span><span class="option-meta">768 px</span></button>
+							<button id="preset-custom" type="button" role="option" data-value="custom" aria-selected="false" tabindex="-1"><span>Свой размер</span><span class="option-meta">Вручную</span></button>
+						</div>
 					</div>
+					<label for="width">Ширина экрана, px</label>
+					<input id="width" type="number" min="320" max="4096" step="1" value="1440" required />
+					<p class="field-hint">Вся страница — от первого экрана до последнего блока.</p>
 					<label class="check"><input id="mobile" type="checkbox" />Мобильный режим</label>
-					<details>
-						<summary>Дополнительные настройки</summary>
-						<label for="selector">Только блок <span class="muted">· CSS-селектор</span></label>
-						<input id="selector" type="text" placeholder="Например, main или #hero" spellcheck="false" />
-						<label for="wait-for">Дождаться элемента <span class="muted">· CSS-селектор</span></label>
-						<input id="wait-for" type="text" placeholder="Например, .content-loaded" spellcheck="false" />
-						<label for="wait-ms">Дополнительное ожидание, мс</label>
-						<input id="wait-ms" type="number" min="0" max="10000" step="100" value="500" required />
-						<label class="check"><input id="scroll" type="checkbox" checked />Прокрутить для загрузки контента</label>
+					<details id="advanced">
+						<summary>Дополнительные настройки<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3.5L5 6.5L8 3.5" /></svg></summary>
+						<div class="advanced-fields">
+							<label class="check"><input id="auto-layout" type="checkbox" checked />Создавать auto-layout для Flex и Grid</label>
+							<label for="selector">Только блок <span class="muted">· CSS-селектор</span></label>
+							<input id="selector" type="text" placeholder="Например, main или #hero" spellcheck="false" />
+							<label for="wait-for">Дождаться элемента <span class="muted">· CSS-селектор</span></label>
+							<input id="wait-for" type="text" placeholder="Например, .content-loaded" spellcheck="false" />
+							<label for="wait-ms">Дополнительное ожидание, мс</label>
+							<input id="wait-ms" type="number" min="0" max="10000" step="100" value="500" required />
+							<label class="check"><input id="scroll" type="checkbox" checked />Прокрутить для загрузки контента</label>
+						</div>
 					</details>
 				</fieldset>
-				<button id="import-button" type="submit" disabled>Перенести в Figma</button>
+				<button id="import-button" class="primary-button" type="submit" disabled>Перенести в Figma</button>
 			</form>
-			<p id="import-result" class="result" role="status" aria-live="polite"></p>
-			<details id="warnings" hidden><summary>Замечания импорта</summary><ul id="warning-list"></ul></details>
-			<p class="hint">Можно указать localhost. Для связи нужен запущенный локальный мост Vivi.</p>
+			<p id="import-result" class="result" role="status" aria-live="polite" hidden></p>
+			<details id="warnings" class="warnings" hidden><summary>Замечания импорта</summary><ul id="warning-list"></ul></details>
+			<p class="footer-hint">Можно указать localhost. Для связи нужен запущенный локальный мост Vivi.</p>
 		</main>
+		</div>
 		<script src="./ui.js"></script>
 	</body>
 </html>

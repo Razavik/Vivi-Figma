@@ -10,8 +10,91 @@ import { WebSocketServer } from "ws";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { fileURLToPath } from "node:url";
+import { PNG } from "pngjs";
 
 const flatten = (n) => [n, ...(n.children || []).flatMap(flatten)];
+
+test("HTML images: opaque photos compress, alpha stays PNG, clipped/zero-size assets are skipped", async () => {
+	const noisy = new PNG({ width: 256, height: 256 });
+	let seed = 123;
+	for (let i = 0; i < noisy.data.length; i++) { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; noisy.data[i] = i % 4 === 3 ? 255 : seed >>> 24; }
+	const opaque = PNG.sync.write(noisy);
+	for (let i = 3; i < noisy.data.length; i += 4) noisy.data[i] = 128;
+	const transparent = PNG.sync.write(noisy);
+	const server = createServer((req, res) => {
+		if (req.url.endsWith(".png")) { res.setHeader("Content-Type", "image/png"); return res.end(req.url === "/alpha.png" ? transparent : opaque); }
+		res.setHeader("Content-Type", "text/html; charset=utf-8");
+		res.end('<style>body{margin:0}main{position:relative;width:520px;height:256px;overflow:hidden}img{width:256px;height:256px;position:absolute;top:0}#alpha{left:260px}#clipped{left:800px}#hidden{opacity:0}main::before{content:"";position:absolute;width:256px;height:0;background:linear-gradient(red,blue)}</style><main><img id="photo" src="/photo.png"><img id="alpha" src="/alpha.png"><img id="clipped" src="/photo.png"><div id="hidden"><img src="/photo.png"></div></main>');
+	});
+	await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+	try {
+		const result = await htmlToDesign({ url: `http://127.0.0.1:${server.address().port}`, selector: "main", width: 600 });
+		const images = flatten(result.spec).filter((node) => node.type === "image");
+		assert.equal(images.length, 2);
+		assert.equal(images.find((node) => node.name === "photo").mime, "image/jpeg");
+		const alpha = images.find((node) => node.name === "alpha");
+		assert.equal(alpha.mime, "image/png");
+		assert.equal(PNG.sync.read(Buffer.from(alpha.data, "base64")).data[3], 128);
+		assert.ok(!result.warnings.some((warning) => warning.includes("заглушкой")), result.warnings.join("\n"));
+	} finally { await new Promise((resolve) => server.close(resolve)); }
+});
+
+test("HTML SVG: CSS viewport and local/external sprite uses are self-contained", async () => {
+	const server = createServer((req, res) => {
+		res.setHeader("Content-Type", req.url === "/sprite.svg" ? "image/svg+xml" : "text/html; charset=utf-8");
+		res.end(req.url === "/sprite.svg" ? '<svg xmlns="http://www.w3.org/2000/svg"><symbol id="external" viewBox="0 0 40 20"><path d="M0 0H40V20H0Z"/></symbol></svg>' : '<style>body{margin:0}main{display:flex;height:80px;align-items:center}main>svg{width:28px;height:20px;fill:red}</style><svg style="display:none"><symbol id="local" viewBox="0 0 10 10"><circle cx="5" cy="5" r="5"/></symbol></svg><main><svg id="direct" viewBox="0 0 100 100"><path d="M0 0H100V100H0Z"/></svg><svg id="local-icon"><use href="#local"/></svg><svg id="external-icon"><use href="/sprite.svg#external"/></svg></main>');
+	});
+	await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+	try {
+		const result = await htmlToDesign({ url: `http://127.0.0.1:${server.address().port}`, selector: "main", width: 320 });
+		const icons = flatten(result.spec).filter((node) => node.type === "icon");
+		assert.equal(icons.length, 3);
+		for (const icon of icons) {
+			assert.equal(icon.w, 28);
+			assert.equal(icon.h, 20);
+			assert.match(icon.svg, /width="28"/);
+			assert.match(icon.svg, /height="20"/);
+			assert.doesNotMatch(icon.svg, /<use\b/);
+		}
+		assert.match(icons[1].svg, /<circle/);
+		assert.match(icons[2].svg, /viewBox="0 0 40 20"/);
+		assert.match(icons[2].svg, /<path/);
+		assert.ok(!result.warnings.some((warning) => warning.includes("SVG")), result.warnings.join("\n"));
+	} finally { await new Promise((resolve) => server.close(resolve)); }
+});
+
+test("HTML: plain body is flattened with offsets, background and stacking intact", async () => {
+	const result = await htmlToDesign({ html: '<style>body{margin:12px 20px;background:#123456}main{height:100px}footer{position:relative;z-index:2;height:30px}</style><main id="main">Content</main><footer id="footer">Footer</footer>', width: 320 });
+	assert.deepEqual(result.spec.children.map((node) => node.name), ["main", "footer"]);
+	assert.equal(result.spec.fill, "#123456ff");
+	assert.equal(result.spec.children[0].x, 20);
+	assert.equal(result.spec.children[0].y, 12);
+	assert.equal(result.spec.children[1].y, 112);
+	assert.ok(!flatten(result.spec).some((node) => node.name === "body"));
+	const effects = await htmlToDesign({ html: '<style>body{opacity:.5}</style><main>Grouped opacity</main>', width: 320 });
+	assert.equal(effects.spec.children[0].name, "body");
+	assert.equal(effects.spec.children[0].opacity, .5);
+});
+
+test("HTML: абсолютные before/after сохраняют геометрию, градиент и порядок", async () => {
+	const html = `<style>body{margin:0}main{position:relative;width:320px;height:200px;background:blue}main::before{content:"";position:absolute;inset:0;background:linear-gradient(rgba(255,255,255,.95) 85%,transparent)}main::after{content:"OK";position:absolute;right:10px;top:10px;width:30px;height:20px;background:red;color:white}</style><main></main>`;
+	const result = await htmlToDesign({ html, selector: "main", width: 320 });
+	const before = flatten(result.spec).find((node) => node.name === "::before");
+	const after = flatten(result.spec).find((node) => node.name === "::after");
+	assert.ok(before);
+	assert.ok(after);
+	assert.equal(before.w, 320);
+	assert.equal(before.h, 200);
+	assert.equal(after.x, 280);
+	assert.equal(after.y, 10);
+	assert.ok(flatten(after).some((node) => node.text === "OK"));
+	const image = flatten(before).find((node) => node.type === "image");
+	const png = PNG.sync.read(Buffer.from(image.data, "base64"));
+	assert.ok(png.data[(10 * png.width + 10) * 4 + 3] > 235);
+	assert.ok(png.data[((png.height - 1) * png.width + 10) * 4 + 3] < 20);
+	assert.ok(result.spec.children.indexOf(before) < result.spec.children.indexOf(after));
+	assert.ok(!result.warnings.some((warning) => warning.includes("псевдоэлементы")));
+});
 
 test("HTML: источник, протокол, границы проекта и серверный macro", async () => {
 	assert.throws(() => checkHtmlInput({}), /ровно один/);
@@ -40,8 +123,12 @@ test("HTML: CSS media queries, текст, SVG и скрытые слои", asyn
 	assert.equal(mobile.spec.fill, "#123456ff");
 	assert.equal(m.find((n) => n.type === "text").text, "Привет, мир");
 	assert.equal(m.find((n) => n.type === "text").fontWeight, "bold");
+	assert.equal(m.find((n) => n.type === "text").fontFamily, "Arial");
 	assert.ok(!m.some((n) => n.text === "Скрыт"));
-	assert.ok(m.find((n) => n.type === "icon").y > d.find((n) => n.type === "icon").y);
+	assert.equal(desktop.spec.layout, "horizontal");
+	assert.equal(mobile.spec.layout, "vertical");
+	assert.equal(desktop.spec.gap, 24);
+	assert.equal(mobile.spec.gap, 10);
 	await assert.rejects(htmlToDesign({ html, maxNodes: 2 }), /больше 2 слоёв/);
 });
 
@@ -61,6 +148,17 @@ test("HTML: динамический URL, API, ожидание рендера �
 		assert.equal(result.source.isMobile, true);
 	} finally {
 		await new Promise((r) => server.close(r));
+	}
+});
+
+test("HTML: страница целиком без высоты и без обрезки по viewport", async () => {
+	const html = '<style>body{margin:0}main{height:5000px;display:flex;align-items:flex-end}</style><main><p>Конец страницы</p></main>';
+	for (const height of [undefined, 400]) {
+		const result = await htmlToDesign({ html, width: 390, ...(height ? { height } : {}) });
+		assert.equal(result.spec.w, 390);
+		assert.equal(result.spec.h, 5000);
+		assert.equal(result.source.viewport.height, height || 900);
+		assert.ok(flatten(result.spec).some((node) => node.text === "Конец страницы"));
 	}
 });
 
@@ -88,6 +186,79 @@ test("HTML: фон отдельным PNG, тень, lazy-load и обход CSP
 	assert.ok(result.spec.children[0].data);
 	assert.equal(result.spec.shadow.blur, 8);
 	assert.ok(flatten(result.spec).some((n) => n.text === "Фон"));
+});
+
+test("HTML: PNG фона не содержит перекрывающих слоёв и сохраняет прозрачность", async () => {
+	const result = await htmlToDesign({
+		html: '<style>body{margin:0}#scene{position:relative;width:320px;height:200px}#bg{position:absolute;inset:0;background:linear-gradient(rgba(0,0,255,.5),rgba(0,0,255,.5));opacity:.4}#cover{position:absolute;inset:0;background:red;z-index:2}</style><main id="scene"><div id="bg"></div><div id="cover">Отдельный текст поверх фона</div></main>',
+		width: 320, height: 200, selector: "#scene",
+	});
+	const nodes = flatten(result.spec);
+	const background = nodes.find((n) => n.name === "Background");
+	assert.equal(background.type, "image");
+	const png = PNG.sync.read(Buffer.from(background.data, "base64"));
+	const center = (Math.floor(png.height / 2) * png.width + Math.floor(png.width / 2)) * 4;
+	assert.deepEqual([...png.data.subarray(center, center + 4)], [0, 0, 255, 128]);
+	assert.equal(nodes.find((n) => n.name === "bg").opacity, .4);
+	assert.equal(nodes.find((n) => n.name === "bg").fill, "#00000000");
+	assert.ok(nodes.some((n) => n.type === "text" && n.text.includes("Отдельный текст")));
+	assert.equal(nodes.find((n) => n.name === "cover").fill, "#ff0000ff");
+});
+
+test("HTML: фон по URL и img захватываются без перекрывающего баннера", async () => {
+	const pixel = new PNG({ width: 1, height: 1 });
+	pixel.data.set([0, 0, 255, 128]);
+	const bytes = PNG.sync.write(pixel);
+	const server = createServer((req, res) => {
+		if (req.url === "/pixel.png") { res.setHeader("content-type", "image/png"); return res.end(bytes); }
+		if (req.url === "/slow.png") { res.setHeader("content-type", "image/png"); return setTimeout(() => res.end(bytes), 250); }
+		res.setHeader("content-type", "text/html; charset=utf-8");
+		res.end('<style>body{margin:0}#scene{position:relative;width:320px;height:200px}#bg{position:absolute;inset:0;background:url(/pixel.png)}img{position:absolute;width:24px;height:24px;opacity:.5}#slow{position:absolute;left:40px;top:0;width:24px;height:24px;background:url(/slow.png)}#cover{position:absolute;inset:0;background:red;z-index:3}</style><main id="scene"><div id="bg"></div><img id="photo" src="/pixel.png"><div id="slow"></div><div id="cover">Баннер</div></main>');
+	});
+	await new Promise((r) => server.listen(0, "127.0.0.1", r));
+	try {
+		const result = await htmlToDesign({ url: `http://127.0.0.1:${server.address().port}`, width: 320, selector: "#scene" });
+		const images = flatten(result.spec).filter((n) => n.type === "image");
+		assert.equal(images.length, 3);
+		for (const image of images) {
+			const png = PNG.sync.read(Buffer.from(image.data, "base64"));
+			const center = (Math.floor(png.height / 2) * png.width + Math.floor(png.width / 2)) * 4;
+			assert.deepEqual([...png.data.subarray(center, center + 4)], [0, 0, 255, 128]);
+		}
+		assert.equal(images.find((n) => n.name === "photo").opacity, .5);
+	} finally { await new Promise((r) => server.close(r)); }
+});
+
+test("HTML: порядок отрисовки учитывает z-index, а обычные блоки сохраняют DOM-порядок", async () => {
+	const result = await htmlToDesign({ width: 320, selector: "#scene", html: '<style>#scene{isolation:isolate}#front{position:relative;z-index:10}#back{position:relative;z-index:1}#negative{position:relative;z-index:-2}#positioned{position:relative}#flow{z-index:999}</style><main id="scene"><header id="front">Верхний</header><div id="flow">Обычный</div><footer id="back">Нижний</footer><div id="negative">Фон</div><div id="positioned">Позиционированный</div></main>' });
+	assert.deepEqual(result.spec.children.map((n) => n.name), ["negative", "flow", "positioned", "back", "front"]);
+	const normal = await htmlToDesign({ width: 320, selector: "main", html: '<main><header id="header">Шапка</header><section id="content">Контент</section><footer id="footer">Подвал</footer></main>' });
+	assert.deepEqual(normal.spec.children.map((n) => n.name), ["header", "content", "footer"]);
+	assert.ok(normal.spec.children[0].y < normal.spec.children[2].y);
+});
+
+test("HTML: flex/grid order меняет порядок слоёв при одинаковом z-index", async () => {
+	const result = await htmlToDesign({ width: 320, selector: "main", html: '<main><div id="flex" style="display:flex"><div id="flex-last" style="order:2">Последний</div><div id="flex-first" style="order:-1">Первый</div></div><div id="grid" style="display:grid"><div id="grid-last" style="order:2">Последний</div><div id="grid-first" style="order:-1">Первый</div></div></main>' });
+	assert.deepEqual(result.spec.children[0].children.map((n) => n.name), ["flex-first", "flex-last"]);
+	assert.deepEqual(result.spec.children[1].children.map((n) => n.name), ["grid-first", "grid-last"]);
+});
+
+test("HTML: фон футера не перекрывает z-index потомков main из другого DOM-контейнера", async () => {
+	const result = await htmlToDesign({ width: 320, selector: "#scene", html: '<style>body{margin:0}#scene{width:320px}#header{position:relative;z-index:15;height:30px}#content{position:relative;z-index:2;height:100px;background:lime}#footer{position:relative;height:40px}#backdrop{position:absolute;top:-130px;width:320px;height:200px;background:blue}#footer-bottom{position:relative;z-index:2;height:40px}</style><section id="scene"><div id="main"><header id="header">Шапка</header><div id="content">Контент</div></div><footer id="footer"><div id="backdrop"></div><div id="footer-bottom">Подвал</div></footer></section>' });
+	const names = result.spec.children.map((n) => n.name);
+	assert.ok(names.indexOf("backdrop") < names.indexOf("content"));
+	assert.ok(names.indexOf("backdrop") < names.indexOf("header"));
+	assert.equal(result.spec.children.find((n) => n.name === "content").y, 30);
+	assert.equal(result.spec.children.find((n) => n.name === "backdrop").y, 0);
+	assert.equal(result.spec.children.find((n) => n.name === "footer-bottom").y, 130);
+	assert.equal(result.spec.children.find((n) => n.name === "header").y, 0);
+	assert.ok(!result.spec.children.find((n) => n.name === "footer").children.some((n) => n.name === "backdrop"));
+});
+
+test("HTML: настоящий stacking context остаётся отдельной группой", async () => {
+	const result = await htmlToDesign({ width: 320, selector: "#scene", html: '<section id="scene"><div id="group" style="position:relative;z-index:1"><div id="inside" style="position:relative;z-index:999">Внутри</div></div><div id="front" style="position:relative;z-index:2">Снаружи</div></section>' });
+	assert.deepEqual(result.spec.children.map((n) => n.name), ["group", "front"]);
+	assert.equal(result.spec.children[0].children[0].name, "inside");
 });
 
 test("HTML: MCP dry без плагина, запись через create и readonly", async () => {

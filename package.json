@@ -1,6 +1,6 @@
 {
 	"name": "vivi-figma-mcp",
-	"version": "0.6.0",
+	"version": "0.7.0",
 	"description": "MCP-сервер и плагин Figma: чтение и редактирование дизайна, экспорт ассетов, перенос HTML и динамических сайтов в редактируемые слои с поддержкой мобильных экранов.",
 	"license": "MIT",
 	"type": "module",
@@ -55,6 +55,7 @@
 		"node": ">=20.0.0"
 	},
 	"devDependencies": {
-		"lucide-static": "^1.61.0"
+		"lucide-static": "^1.61.0",
+		"pngjs": "^5.0.0"
 	}
 }

@@ -28,7 +28,7 @@ export interface BridgeResult {
 export interface HtmlImport {
 	type: "html_import";
 	reqId: string;
-	args: { url: string; width: number; height: number; isMobile: boolean; waitFor?: string; waitMs?: number; selector?: string; scroll?: boolean };
+	args: { url: string; width: number; isMobile: boolean; autoLayout?: boolean; waitFor?: string; waitMs?: number; selector?: string; scroll?: boolean };
 }
 
 export interface HtmlImportProgress {

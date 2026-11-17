@@ -31,6 +31,7 @@ export const ALIGN_TO_SPEC: Record<string, string> = {
 	CENTER: "center",
 	MAX: "end",
 	SPACE_BETWEEN: "space-between",
+	BASELINE: "baseline",
 };
 
 const NAMED_COLORS: Record<string, string> = {

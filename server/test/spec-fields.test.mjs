@@ -19,10 +19,10 @@ test("регистр не считается ошибкой-загадкой: Fi
 	assert.match(notes[0], /вероятно, fill/);
 });
 
-test("невалидный enum: layout grid → список допустимых", () => {
-	const notes = checkSpecFields({ type: "frame", layout: "grid" });
+test("невалидный enum: layout diagonal → список допустимых", () => {
+	const notes = checkSpecFields({ type: "frame", layout: "diagonal" });
 	assert.equal(notes.length, 1);
-	assert.match(notes[0], /frame\.layout: значение «grid» недопустимо \(допустимо: none, vertical, horizontal\)/);
+	assert.match(notes[0], /frame\.layout: значение «diagonal» недопустимо \(допустимо: none, vertical, horizontal, grid\)/);
 });
 
 test("fontWeight: heavy отклоняется, extrabold проходит", () => {

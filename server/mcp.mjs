@@ -6,8 +6,7 @@
 // Подключение (пример для Claude Code):
 //   claude mcp add vivi-figma -- node D:/Work/Learning/FigmaAgent/server/mcp.mjs
 // Мост (npm start) и плагин в Figma должны быть запущены.
-import { spawn } from "node:child_process";
-import { mkdirSync, openSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -20,6 +19,7 @@ import { applyLayoutDefaults, prepareDesign, validateSpec } from "./design-pipel
 import { checkSpecFields } from "./spec-fields.mjs";
 import { variantEdits } from "./variants-macro.mjs";
 import { htmlToDesign } from "./html-to-design.mjs";
+import { ensureBridge } from "./bridge-start.mjs";
 import { searchIcons } from "./icons.mjs";
 import { SCHEMA_NAMES, schemaText } from "./schemas.mjs";
 import { exportRoots, exportTarget, projectRoot, resolveArgs, saveExported } from "./mcp-export.mjs";
@@ -55,29 +55,12 @@ const waiting = new Map();
 // лог в ~/.vivi-figma/bridge.log. MCP_NO_AUTOSTART=1 отключает. Параллельные запуски
 // безопасны: лишний мост упадёт на занятом порте, а клиенты подключатся к первому.
 // Лог моста — в постоянной папке пользователя (кэш npx может очиститься).
-const LOG_DIR = join(homedir(), ".vivi-figma");
-const LOG_FILE = join(LOG_DIR, "bridge.log");
 let starting = null;
 function startBridge() {
 	if (starting) return starting;
-	let out = "ignore";
-	try {
-		mkdirSync(LOG_DIR, { recursive: true });
-		out = openSync(LOG_FILE, "a");
-	} catch {
-		/* без лога тоже работаем */
-	}
-	const child = spawn(process.execPath, [join(SERVER_DIR, "index.mjs")], {
-		cwd: SERVER_DIR,
-		detached: true,
-		stdio: ["ignore", out, out],
-		windowsHide: true,
-		env: process.env,
-	});
-	child.on("error", () => {});
-	child.unref();
-	console.error("vivi-figma MCP: мост не был запущен — стартую в фоне (лог ~/.vivi-figma/bridge.log)");
-	starting = new Promise((r) => setTimeout(r, 800)).finally(() => setTimeout(() => (starting = null), 20_000));
+	starting = ensureBridge().then((result) => {
+		console.error(`vivi-figma MCP: мост ${result.started ? "запущен в фоне" : "уже работает"} (лог ${result.logFile})`);
+	}).finally(() => { starting = null; });
 	return starting;
 }
 

@@ -3,6 +3,7 @@ import type { Fill } from "../spec";
 import type { AnySpec, Container } from "./canvas-state";
 import { state } from "./canvas-state";
 import { queueFillStyle } from "./designsystem";
+import { applyGridLayout, gridSpecOf, gridCellOf } from "./grid-layout";
 import {
 	STYLE_BY_WEIGHT,
 	applyFill,
@@ -190,9 +191,16 @@ async function applyUpdate(node: SceneNode, op: EditOp): Promise<void> {
 		const f = node as FrameNode;
 		if (typeof op.clip === "boolean") f.clipsContent = op.clip;
 		applyMinMax(f, op as Record<string, unknown>);
+		if (op.layout === "grid" || op.grid) {
+			const oldGrid = f.layoutMode === "GRID";
+			const children = f.children.map((child) => ({ node: child, spec: { w: child.width, h: child.height, position: "layoutPositioning" in child && child.layoutPositioning === "ABSOLUTE" ? "absolute" : "auto", ...(oldGrid ? { gridCell: gridCellOf(child) } : {}) } as AnySpec }));
+			applyGridLayout(f, { ...op, grid: op.grid || (oldGrid ? gridSpecOf(f) : undefined), padding: op.padding ?? [f.paddingTop, f.paddingRight, f.paddingBottom, f.paddingLeft] }, children);
+		}
 		if (op.layout === "vertical") f.layoutMode = "VERTICAL";
 		else if (op.layout === "horizontal") f.layoutMode = "HORIZONTAL";
 		else if (op.layout === "none") f.layoutMode = "NONE";
+		if (typeof op.wrap === "boolean" && f.layoutMode === "HORIZONTAL") f.layoutWrap = op.wrap ? "WRAP" : "NO_WRAP";
+		if (typeof op.reverseZIndex === "boolean") f.itemReverseZIndex = op.reverseZIndex;
 		if (typeof op.gap === "number") {
 			f.itemSpacing = op.gap;
 			if (f.layoutWrap === "WRAP" && typeof op.rowGap !== "number") f.counterAxisSpacing = op.gap;
@@ -216,6 +224,7 @@ async function applyUpdate(node: SceneNode, op: EditOp): Promise<void> {
 			center: "CENTER",
 			end: "MAX",
 		};
+		crossAlign.baseline = "BASELINE";
 		if (mainAlign[String(op.align)])
 			f.primaryAxisAlignItems = mainAlign[
 				String(op.align)

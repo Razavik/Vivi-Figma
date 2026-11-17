@@ -4,12 +4,15 @@ frame — container/layout node
   name?: string
   x, y?: number — position: inside a parent with layout:"none" (or the root frame), or with position:"absolute" (see POSITION below)
   w, h?: number | "hug" | "fill" — px, fit-content, or stretch to parent ("fill" works only inside auto-layout frames; "hug" works only on frames that have auto-layout (layout vertical/horizontal), on text, and on the root frame when it has layout vertical/horizontal)
-  layout?: "none" | "vertical" | "horizontal" (default "none")
+  layout?: "none" | "vertical" | "horizontal" | "grid" (default "none")
   gap?: number — spacing between children in auto-layout
   padding?: number | number[] — CSS shorthand: [v]=all sides, [v,h]=vertical/horizontal, [t,h,b]=top/horizontal/bottom, [t,r,b,l]=each side; a CSS string ("16px 32px") is also accepted
   align?: "start" | "center" | "end" | "space-between" — main axis alignment
   cross?: "start" | "center" | "end" — counter axis alignment
   wrap?: boolean — horizontal auto-layout wraps children onto new rows (chip clouds, galleries, the Components library); gap is the gap inside a row, rowGap (default = gap) the gap between rows
+  grid?: { columns: Track[], rows: Track[], columnGap?: number, rowGap?: number } — native Figma Grid; Track = {type:"fixed",value:px} | {type:"flex",value:fr} | {type:"hug"}. FLEX tracks need a fixed/fill container on that axis, not hug.
+  Grid children: gridCell?: {row:0-based,column:0-based,rowSpan?:1,columnSpan?:1,horizontalAlign?:"start"|"center"|"end",verticalAlign?:"start"|"center"|"end"}. Without gridCell, children are placed sequentially. Cells must not overlap. Absolute children do not occupy cells.
+  reverseZIndex?: boolean — reverse canvas stacking in linear auto-layout (useful with reversed Flex direction).
   fill?: "#RRGGBB" | "#RRGGBBAA" | "none" | {"color": "#RRGGBB", "opacity": 0..1} | {"gradient":"linear","angle":180,"stops":["#6366F1","#8B5CF6"]} — linear gradient, angle in degrees as in CSS (180 = top to bottom, 90 = left to right), 2+ colors spread evenly (#RRGGBBAA works for fades) | {"gradient":"radial","stops":["#F5B38A","#F5B38A00"],"center"?:[0.5,0.5],"radius"?:0.5} — radial glow, the first color in the center; center in fractions of the node (0..1), radius as a fraction of its size (0.5 reaches the edges)
   clip?: boolean — clip children to the frame bounds (image masks, carousels, cards with full-bleed photos)
   minW?, maxW?: number — width limits in auto-layout (e.g. a paragraph column maxW 640 with w:"fill")
