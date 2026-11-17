@@ -32,8 +32,8 @@ export const state = {
 	// Ноды, построенные раньше своей очереди (фреймы с компонентами):
 	// в основном проходе их просто переставляем на нужную позицию.
 	prebuilt: new Map<AnySpec, SceneNode>(),
-	// Ноды с right/bottom: ставятся, когда размеры родителей окончательны.
-	anchors: [] as { node: SceneNode; right?: number; bottom?: number }[],
+	// Позиция и constraints применяются после окончательного размера родителей.
+	anchors: [] as { node: SceneNode; right?: number; bottom?: number; constraints?: Partial<Constraints> }[],
 };
 
 export type AnySpec = {

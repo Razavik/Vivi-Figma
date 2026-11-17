@@ -3,6 +3,19 @@ import assert from "node:assert/strict";
 import { htmlToDesign } from "../html-to-design.mjs";
 
 const flatten = (node) => [node, ...(node.children || []).flatMap(flatten)];
+test("HTML text: CSS-hidden breaks join one phrase; visible breaks keep their lines", async () => {
+	const result = await htmlToDesign({ html: '<style>p{font:16px/20px Arial;width:max-content}#hidden br,#hidden span{display:none}</style><main><p id="hidden">Fill out the form and get<br> a free consultation with<br> a specialist<span>Hidden content</span></p><p id="visible">First line<br>Second line</p></main>', selector: "main", width: 800 });
+	const nodes = flatten(result.spec);
+	const hidden = nodes.find((node) => node.name === "hidden");
+	assert.equal(hidden.children.length, 1);
+	assert.equal(hidden.children[0].text, "Fill out the form and get a free consultation with a specialist");
+	assert.equal(hidden.children[0].w, "hug");
+	const visibleTexts = flatten(nodes.find((node) => node.name === "visible")).filter((node) => node.type === "text");
+	assert.equal(visibleTexts.length, 2);
+	assert.ok(visibleTexts[1].y > visibleTexts[0].y);
+	assert.ok(visibleTexts.every((node) => node.noWrap === true));
+});
+
 test("HTML Flex: wrapped anonymous text keeps browser line positions", async () => {
 	const result = await htmlToDesign({ html: '<main style="display:flex;justify-content:center;width:200px;font:700 24px/30px Arial">Комплексные решения в сфере логистики</main>', selector: "main", width: 320 });
 	assert.equal(result.spec.layout, "none");

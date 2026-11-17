@@ -206,7 +206,7 @@ export function placeAnchored(): void {
 		try {
 			const c =
 				"constraints" in n
-					? { ...(n as ConstraintMixin).constraints }
+					? { ...(n as ConstraintMixin).constraints, ...a.constraints }
 					: null;
 			if (typeof a.right === "number") {
 				n.x = p.width - n.width - a.right;
@@ -421,7 +421,15 @@ export async function buildNode(
 ): Promise<SceneNode | null> {
 	const node = await buildBare(spec, parent, inAuto);
 	if (node && spec && typeof spec === "object") {
-		applyLook(node, spec);
+		// Installing STRETCH while an auto-layout parent still has a temporary
+		// width makes Figma stretch the asset during the final parent resize.
+		// Keep the captured geometry until the whole tree has settled.
+		applyLook(node, spec.constraints ? { ...spec, constraints: undefined } : spec);
+		if (spec.constraints && "constraints" in node) {
+			let pending = state.anchors.find((item) => item.node === node);
+			if (!pending) { pending = { node }; state.anchors.push(pending); }
+			pending.constraints = spec.constraints as Partial<Constraints>;
+		}
 		if ((spec as { mask?: unknown }).mask === true && "isMask" in node) {
 			if (inAuto) state.warnings.push(`${node.name}: mask:true работает только во фрейме с layout:"none"`);
 			else (node as GeometryMixin & { isMask: boolean }).isMask = true;
@@ -603,7 +611,9 @@ async function buildBare(
 			const flow = applyPosition(text, spec, inAuto);
 
 			try {
-				if (flow && spec.w === "fill") {
+				if (spec.noWrap === true) {
+					text.textAutoResize = "WIDTH_AND_HEIGHT";
+				} else if (flow && spec.w === "fill") {
 					text.textAutoResize = "HEIGHT";
 					text.layoutSizingHorizontal = "FILL";
 				} else if (typeof spec.w === "number") {

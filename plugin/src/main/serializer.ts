@@ -404,6 +404,7 @@ function serializeBase(node: SceneNode, depth: number): AnySpec | null {
 		}
 		case "TEXT": {
 			base.type = "text";
+			if (node.textAutoResize === "WIDTH_AND_HEIGHT") base.noWrap = true;
 			base.text = node.characters.slice(0, 500);
 			if (typeof node.fontSize === "number")
 				base.fontSize = node.fontSize;

@@ -113,6 +113,8 @@ export interface FrameSpec extends BaseSpec, StrokeExtras {
 
 export interface TextSpec extends BaseSpec {
 	type: "text";
+	/** Сохранить готовую строку без повторного переноса по ширине. */
+	noWrap?: boolean;
 	text: string;
 	/** Разные стили внутри одного текста; при наличии text можно не задавать. */
 	spans?: TextSpan[];

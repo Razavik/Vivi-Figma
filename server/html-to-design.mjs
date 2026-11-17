@@ -40,6 +40,7 @@ export async function htmlToDesign(args, { roots = [], executablePath = process.
 	const baseDir = sourcePath ? dirname(sourcePath) : roots[0];
 	const allowNetwork = args.allowNetwork ?? Boolean(args.url);
 	const warnings = new Set();
+	const imageResponses = new Map();
 	let browser;
 	try {
 		// На Windows можно работать сразу с установленным Edge/Chrome, даже если
@@ -72,7 +73,11 @@ export async function htmlToDesign(args, { roots = [], executablePath = process.
 					await route.fulfill({ contentType, body: await readFile(file) });
 					return;
 				}
-				if (allowNetwork && ["http:", "https:"].includes(url.protocol)) return await route.continue();
+				if (allowNetwork && ["http:", "https:"].includes(url.protocol)) {
+					const cached = await imageResponses.get(request.url());
+					if (cached) return await route.fulfill(cached);
+					return await route.continue();
+				}
 				if (url.protocol === "data:") return await route.continue();
 				warnings.add("Внешние ресурсы отключены; для их загрузки передайте allowNetwork:true.");
 			} catch (err) {
@@ -81,6 +86,11 @@ export async function htmlToDesign(args, { roots = [], executablePath = process.
 			await route.abort().catch(() => {});
 		});
 		const page = await context.newPage();
+		page.on("response", (response) => {
+			if (response.ok() && response.request().resourceType() === "image") {
+				imageResponses.set(response.url(), response.body().then((body) => ({ body, contentType: response.headers()["content-type"] || "application/octet-stream" })).catch(() => null));
+			}
+		});
 		page.setDefaultTimeout(15_000);
 		page.on("pageerror", (err) => warnings.add(`Ошибка JavaScript: ${err.message.slice(0, 160)}`));
 		await page.goto(args.url || `${ORIGIN}/__vivi_entry__.html`, { waitUntil: "domcontentloaded", timeout: 30_000 });
@@ -120,10 +130,11 @@ export async function htmlToDesign(args, { roots = [], executablePath = process.
 		const assets = [];
 		function collect(node) {
 			if (node.captureIndex !== undefined) {
-				assets.push({ index: node.captureIndex, background: node.captureBackground, image: node.captureImage, size: node.captureSize, node });
+				assets.push({ index: node.captureIndex, background: node.captureBackground, image: node.captureImage, control: node.captureControl, size: node.captureSize, node });
 				delete node.captureIndex;
 				delete node.captureBackground;
 				delete node.captureImage;
+				delete node.captureControl;
 				delete node.captureSize;
 			}
 			for (const child of node.children || []) collect(child);
@@ -133,26 +144,38 @@ export async function htmlToDesign(args, { roots = [], executablePath = process.
 		for (const asset of assets) {
 			try {
 				let target;
-				if (asset.background || asset.image) {
+				if (asset.background || asset.image || asset.control) {
 					// Снимок исходного элемента содержит и перекрывающие его слои.
 					// Рисуем только CSS-фон в отдельной пустой странице того же origin.
 					if (!backgroundPage) {
 						backgroundPage = await context.newPage();
 						await backgroundPage.route("**/*", (route) => route.request().isNavigationRequest()
-							? route.fulfill({ contentType: "text/html; charset=utf-8", body: '<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:transparent"><div id="background"></div><img id="image" style="display:none"></body></html>' })
+							? route.fulfill({ contentType: "text/html; charset=utf-8", body: '<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:transparent"><div id="background"></div><img id="image" style="display:none"><div id="control" style="display:none"></div></body></html>' })
 							: route.fallback());
 						await backgroundPage.goto(page.url(), { waitUntil: "domcontentloaded", timeout: 5000 });
 					}
-					await backgroundPage.evaluate(async ({ background, image, w, h }) => {
+					await backgroundPage.evaluate(async ({ background, image, control, w, h }) => {
 						async function decoded(img) {
 							let timer;
-							try { await Promise.race([img.decode(), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("Изображение не загрузилось за 5 секунд")), 5000); })]); }
+							try { await Promise.race([img.decode(), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("Изображение не загрузилось за 30 секунд")), 30000); })]); }
 							finally { clearTimeout(timer); }
 						}
 						const bg = document.getElementById("background");
 						const img = document.getElementById("image");
+						const host = document.getElementById("control");
 						bg.style.display = "none";
 						img.style.display = "none";
+						host.style.display = "none";
+						if (control) {
+							host.replaceChildren(); host.style.display = "block";
+							const select = document.createElement("select");
+							for (const [key, value] of Object.entries(control.styles)) select.style.setProperty(key, value);
+							Object.assign(select.style, { position: "static", margin: "0", transform: "none", opacity: "1", width: `${w}px`, height: `${h}px`, boxSizing: "border-box" });
+							for (const option of control.options) { const el = new Option(option.text, option.value, false, option.selected); el.disabled = option.disabled; select.append(el); }
+							select.multiple = control.multiple; select.disabled = control.disabled; select.size = control.size;
+							host.append(select); host.style.width = `${w}px`; host.style.height = `${h}px`;
+							return;
+						}
 						const box = image ? img : bg;
 						box.removeAttribute("style");
 						Object.assign(box.style, image ? image.styles : background, { display: "block", boxSizing: "border-box", width: `${w}px`, height: `${h}px` });
@@ -161,8 +184,8 @@ export async function htmlToDesign(args, { roots = [], executablePath = process.
 							const urls = [...background.backgroundImage.matchAll(/url\(\s*(?:"((?:\\.|[^"])*)"|'((?:\\.|[^'])*)'|([^)]*))\s*\)/g)].map((m) => (m[1] ?? m[2] ?? m[3]).trim().replace(/\\(["'\\])/g, "$1"));
 							await Promise.all(urls.map(async (url) => { const preload = new Image(); preload.src = url; await decoded(preload); }));
 						}
-					}, { background: asset.background, image: asset.image, w: asset.size?.w ?? asset.node.w, h: asset.size?.h ?? asset.node.h });
-					target = backgroundPage.locator(asset.image ? "#image" : "#background");
+					}, { background: asset.background, image: asset.image, control: asset.control, w: asset.size?.w ?? asset.node.w, h: asset.size?.h ?? asset.node.h });
+					target = backgroundPage.locator(asset.control ? "#control" : asset.image ? "#image" : "#background");
 				} else target = page.locator(`[${captureKey}="${asset.index}"]`);
 				const png = await target.screenshot({ type: "png", timeout: 5000, animations: "disabled", omitBackground: true });
 				let data = png.toString("base64"), mime = "image/png", size = png.length;
@@ -301,7 +324,7 @@ async function snapshotDOM({ selector, name, maxNodes, captureKey, autoLayout })
 			if (!c.whiteSpace.startsWith("pre") && c.whiteSpace !== "break-spaces") content = content.replace(/\s+/g, " ");
 			if (c.textTransform === "uppercase") content = content.toUpperCase();
 			if (c.textTransform === "lowercase") content = content.toLowerCase();
-			return take({ type: "text", name: content.slice(0, 60), text: content, ...style, x: round(l.x - origin.x), y: round(l.y - origin.y - (style.lineHeight - l.height) / 2), w: round(l.right - l.x + 1), h: round(style.lineHeight) });
+			return take({ type: "text", name: content.slice(0, 60), text: content, ...style, noWrap: true, x: round(l.x - origin.x), y: round(l.y - origin.y - (style.lineHeight - l.height) / 2), w: round(l.right - l.x + 1), h: round(style.lineHeight) });
 		});
 	}
 	function createsStack(c) {
@@ -341,13 +364,9 @@ async function snapshotDOM({ selector, name, maxNodes, captureKey, autoLayout })
 		if (c.display === "contents" || (!b.width && !b.height)) {
 			return [...el.childNodes].flatMap((ch) => ch.nodeType === 1 ? walk(ch, origin, depth + 1, clip) : ch.nodeType === 3 ? textNodes(ch, el, origin) : []);
 		}
-		if (el.tagName === "IFRAME") {
-			warnings.add("iframe пропущены: импортируйте их URL отдельно.");
-			return [];
-		}
 		const label = pseudoLabels.get(el) || el.getAttribute("aria-label") || el.id || el.tagName.toLowerCase() + (el.classList.length ? "." + [...el.classList].slice(0, 2).join(".") : "");
 		const box = { name: label.slice(0, 100), x: round(b.x - origin.x), y: round(b.y - origin.y), w: round(Math.max(0.01, b.width)), h: round(Math.max(0.01, b.height)) };
-		if (["IMG", "CANVAS", "VIDEO"].includes(el.tagName)) {
+		if (["IMG", "CANVAS", "VIDEO", "IFRAME", "SELECT"].includes(el.tagName)) {
 			if (c.visibility !== "visible" || outsideClip || b.width <= 0 || b.height <= 0) return [];
 			const index = assets.length;
 			const node = take({ type: "image", ...box, fit: "fill", captureIndex: index, captureSize: { w: box.w, h: box.h } });
@@ -357,9 +376,15 @@ async function snapshotDOM({ selector, name, maxNodes, captureKey, autoLayout })
 				node.captureImage = { src: el.currentSrc || el.src, styles };
 				node.opacity = n(c.opacity);
 			}
+			if (el.tagName === "SELECT") {
+				node.captureControl = { styles: Object.fromEntries([...c].map((key) => [key, c.getPropertyValue(key)])), options: [...el.options].map((option) => ({ text: option.text, value: option.value, selected: option.selected, disabled: option.disabled })), multiple: el.multiple, disabled: el.disabled, size: el.size };
+				node.opacity = n(c.opacity);
+				warnings.add("Нативные select перенесены изображениями вместе с системной стрелкой.");
+			}
 			el.setAttribute(captureKey, String(index));
 			assets.push({ index, node });
-			if (el.tagName !== "IMG") warnings.add("Canvas и видео перенесены изображениями текущего состояния.");
+			if (el.tagName === "IFRAME") warnings.add("iframe, включая капчу, перенесены изображениями текущего состояния.");
+			if (["CANVAS", "VIDEO"].includes(el.tagName)) warnings.add("Canvas и видео перенесены изображениями текущего состояния.");
 			return [trackLayer(node, el, c)];
 		}
 		if (el.tagName.toLowerCase() === "svg") {
@@ -556,20 +581,24 @@ async function snapshotDOM({ selector, name, maxNodes, captureKey, autoLayout })
 			const box = el.getBoundingClientRect(), p = padding(c);
 			const heightAuto = authored(el, "height", c.height) === "auto";
 			const texts = node.children.filter((child) => child.type === "text");
-			if (!el.children.length && texts.length && !c.whiteSpace.startsWith("pre") && !/flex|grid/.test(c.display) && !c.display.startsWith("inline") && c.transform === "none") {
+			const hasRenderedChildren = [...el.children].some((child) => getComputedStyle(child).display !== "none");
+			if (!hasRenderedChildren && texts.length && !c.whiteSpace.startsWith("pre") && !/flex|grid/.test(c.display) && !c.display.startsWith("inline") && c.transform === "none") {
 				const first = texts[0];
-				let content = el.textContent.replace(/\s+/g, " ").trim();
+				const lineYs = [...new Set(texts.map((text) => Math.round(text.y)))];
+				const textWidth = Math.max(...texts.map((text) => text.x + text.w)) - Math.min(...texts.map((text) => text.x));
+				let content = el.innerText.replace(/\s+/g, " ").trim();
 				if (c.textTransform === "uppercase") content = content.toUpperCase();
 				if (c.textTransform === "lowercase") content = content.toLowerCase();
 				first.text = content; first.h = "hug"; first.align = ["center", "right"].includes(c.textAlign) ? c.textAlign : "left";
+				delete first.noWrap; // merged paragraphs must reflow within their full container
 				node.children = node.children.filter((child) => child.type !== "text" || child === first);
 				if (!/flex|grid/.test(c.display) && !c.display.startsWith("inline") && c.transform === "none") {
 					node.layout = "vertical"; node.padding = p; node.gap = 0;
-					if (heightAuto && Math.abs(box.height - (texts.length * first.lineHeight + p[0] + p[2])) <= 3) node.h = "hug";
+					if (heightAuto && Math.abs(box.height - (lineYs.length * first.lineHeight + p[0] + p[2])) <= 3) node.h = "hug";
 					// Intrinsic single-line labels must not wrap because Chromium and
 					// Figma round glyph advances differently. Keep wider paragraph
 					// boxes flexible so their text still reflows on resize.
-					const intrinsicLine = texts.length === 1 && (c.whiteSpace === "nowrap" || Math.abs(box.width - p[1] - p[3] - first.w) <= 2);
+					const intrinsicLine = lineYs.length === 1 && (c.whiteSpace === "nowrap" || Math.abs(box.width - p[1] - p[3] - textWidth) <= 2);
 					first.w = intrinsicLine ? "hug" : "fill";
 					if (intrinsicLine) node.cross = first.align === "right" ? "end" : first.align === "center" ? "center" : "start";
 					delete first.x; delete first.y;

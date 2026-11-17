@@ -7,7 +7,7 @@ const VISUAL = ["fill", "stroke", "strokeWidth", "strokeSides", "strokeAlign", "
 
 const FIELDS = {
 	frame: [...BASE, ...VISUAL, "layout", "gap", "rowGap", "padding", "align", "cross", "wrap", "clip", "minW", "maxW", "component", "children", "variants", "grid", "reverseZIndex"],
-	text: [...BASE, ...VISUAL, "text", "spans", "fontSize", "fontWeight", "fontFamily", "textStyle", "color", "align", "lineHeight", "letterSpacing", "textCase", "textDecoration", "maxLines", "minW", "maxW"],
+	text: [...BASE, ...VISUAL, "text", "spans", "fontSize", "fontWeight", "fontFamily", "textStyle", "color", "align", "lineHeight", "letterSpacing", "textCase", "textDecoration", "maxLines", "minW", "maxW", "noWrap"],
 	rect: [...BASE, ...VISUAL],
 	ellipse: [...BASE, ...VISUAL],
 	line: [...BASE, ...VISUAL, "direction"],

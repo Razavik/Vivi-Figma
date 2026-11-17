@@ -15,6 +15,50 @@ import { validateSpec } from "../design-pipeline.mjs";
 
 const flatten = (n) => [n, ...(n.children || []).flatMap(flatten)];
 
+test("HTML: iframe pixels and native select arrow are captured", async () => {
+	const server = createServer((req, res) => {
+		res.setHeader("Content-Type", "text/html; charset=utf-8");
+		res.end(req.url === "/frame" ? '<style>body{margin:0;background:red;color:white}</style>Widget' : `<style>body{margin:0}select{display:block;width:250px;height:50px;background:white;color:black;border:1px solid #ddd;padding:10px}iframe{display:block;border:0;width:300px;height:80px}</style><main><select id="client"><option>Supplier</option><option selected>Client</option></select><iframe id="captcha" src="http://localhost:${server.address().port}/frame"></iframe></main>`);
+	});
+	await new Promise((resolve) => server.listen(0, resolve));
+	try {
+		const result = await htmlToDesign({ url: `http://127.0.0.1:${server.address().port}`, selector: "main", width: 400, waitMs: 100 });
+		const nodes = flatten(result.spec);
+		const select = nodes.find((node) => node.name === "client");
+		assert.equal(select.type, "image");
+		const png = PNG.sync.read(Buffer.from(select.data, "base64"));
+		let arrowPixels = 0;
+		for (let y = 15; y < 35; y++) for (let x = 230; x < 248; x++) if (png.data[(y * png.width + x) * 4] < 80) arrowPixels++;
+		assert.ok(arrowPixels > 0);
+		const frame = nodes.find((node) => node.name === "captcha");
+		assert.equal(frame.type, "image");
+		const framePng = PNG.sync.read(Buffer.from(frame.data, "base64"));
+		assert.equal(framePng.width, 300);
+		assert.equal(framePng.height, 80);
+		assert.deepEqual([...framePng.data.subarray((40 * 300 + 150) * 4, (40 * 300 + 150) * 4 + 4)], [255, 0, 0, 255]);
+	} finally { await new Promise((resolve) => server.close(resolve)); }
+});
+
+test("HTML: slow image is reused from the source page instead of downloaded twice", async () => {
+	const pixel = new PNG({ width: 2, height: 2 }); pixel.data.fill(255);
+	const bytes = PNG.sync.write(pixel);
+	let requests = 0;
+	const server = createServer((req, res) => {
+		if (req.url === "/slow.png") {
+			requests++; res.writeHead(200, { "Content-Type": "image/png", "Content-Length": bytes.length }); res.flushHeaders();
+			return setTimeout(() => res.end(bytes), 6200);
+		}
+		res.setHeader("Content-Type", "text/html; charset=utf-8"); res.end('<main><img src="/slow.png" width="32" height="32"></main>');
+	});
+	await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+	try {
+		const result = await htmlToDesign({ url: `http://127.0.0.1:${server.address().port}`, selector: "main", width: 320 });
+		assert.equal(requests, 1);
+		assert.ok(flatten(result.spec).find((node) => node.type === "image")?.data);
+		assert.ok(!result.warnings.some((warning) => warning.includes("заглушкой")), result.warnings.join("\n"));
+	} finally { await new Promise((resolve) => server.close(resolve)); }
+});
+
 test("HTML: no default node/image/depth/spec-size limits", async () => {
 	const pixel = new PNG({ width: 1, height: 1 }); pixel.data.set([255, 0, 0, 255]);
 	const src = "data:image/png;base64," + PNG.sync.write(pixel).toString("base64");

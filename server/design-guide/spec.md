@@ -43,6 +43,7 @@ text — text node
   color?: "#RRGGBB"
   align?: "left" | "center" | "right"
   lineHeight?: number — px
+  noWrap?: boolean — keep a captured browser line on one line; ignore numeric w for text wrapping
   letterSpacing?: number | "<n>%" — px or percent of the font size ("-2%" for large headings, "8%" for small uppercase labels)
   textCase?: "upper" | "lower" | "title" — display case; keep the source text in normal case
   textDecoration?: "underline" | "strike" (links, old prices)
