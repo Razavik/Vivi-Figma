@@ -7,7 +7,7 @@ import { restoreRuns } from "./undo";
 // __html__ подставляет Figma — содержимое файла из поля "ui" манифеста.
 declare const __html__: string;
 
-figma.showUI(__html__, { width: 210, height: 44, title: "Vivi MCP", themeColors: true });
+figma.showUI(__html__, { width: 360, height: 540, title: "Vivi MCP", themeColors: true });
 
 interface Msg {
 	type?: string;
@@ -24,6 +24,8 @@ figma.ui.onmessage = async (msg: Msg) => {
 		// Вызовы идут по очереди: они делят общее состояние сборки и сериализации.
 		const reqId = msg.reqId;
 		const run = queue.then(async () => {
+			if (msg.tool === "create" && ((args.expectedPageId && args.expectedPageId !== figma.currentPage.id) || (args.expectedFile && args.expectedFile !== figma.root.name) || (args.expectedFileKey && args.expectedFileKey !== (figma as unknown as { fileKey?: string }).fileKey)))
+				throw new Error("Страница или файл сменились — повторите импорт на нужной странице");
 			const res = await runMcpTool(msg.tool, args);
 			figma.ui.postMessage({ type: "mcp_result", reqId, ...res });
 		});

@@ -19,6 +19,7 @@ import { guideText } from "./design-guide.mjs";
 import { applyLayoutDefaults, prepareDesign, validateSpec } from "./design-pipeline.mjs";
 import { checkSpecFields } from "./spec-fields.mjs";
 import { variantEdits } from "./variants-macro.mjs";
+import { htmlToDesign } from "./html-to-design.mjs";
 import { searchIcons } from "./icons.mjs";
 import { SCHEMA_NAMES, schemaText } from "./schemas.mjs";
 import { exportRoots, exportTarget, projectRoot, resolveArgs, saveExported } from "./mcp-export.mjs";
@@ -217,6 +218,9 @@ function localTool(name, args) {
 }
 
 const handlers = {};
+// Импорт уже содержит готовые SVG/байты и исходный текст: правила генерации
+// (например, удаление эмодзи) к захваченному сайту не применяются.
+const importedSpecs = new WeakSet();
 for (const [name, def] of Object.entries(MCP_TOOLS)) {
 	if (READONLY && def.write) continue;
 	server.registerTool(
@@ -225,11 +229,21 @@ for (const [name, def] of Object.entries(MCP_TOOLS)) {
 			description: def.description,
 			inputSchema: def.input,
 			annotations: def.write
-				? { readOnlyHint: false, destructiveHint: name !== "create", idempotentHint: false, openWorldHint: name === "create" }
+				? { readOnlyHint: false, destructiveHint: !["create", "html_to_design"].includes(name), idempotentHint: false, openWorldHint: ["create", "html_to_design"].includes(name) }
 				: { readOnlyHint: true, openWorldHint: false },
 		},
 		(handlers[name] = async (args) => {
 			try {
+				if (name === "html_to_design") {
+					// Проверяем файл до запуска сайта и ещё раз перед записью через create.
+					if (!args.dry) await guardFile(args.file);
+					const imported = await htmlToDesign(args, { roots: EXPORT.roots });
+					if (args.dry) return text({ dry: true, ...imported });
+					importedSpecs.add(imported.spec);
+					const placement = Object.fromEntries(["parent", "after", "direction", "x", "y", "quiet", "file"].filter((key) => args[key] !== undefined).map((key) => [key, args[key]]));
+					const res = await handlers.create({ spec: imported.spec, ...placement });
+					return { ...res, content: [...res.content, { type: "text", text: JSON.stringify({ import: imported.source, importWarnings: imported.warnings }) }] };
+				}
 				// макро-инструмент (figma_variants) раскрывается в операции figma_edit
 				if (def.macro) {
 					const { file, quiet, dry, ...rest } = args || {};
@@ -265,7 +279,7 @@ for (const [name, def] of Object.entries(MCP_TOOLS)) {
 					const bad = validateSpec(payload);
 					if (bad) throw new Error(bad);
 					applyLayoutDefaults(payload);
-					prepared = await prepareDesign(payload, { roots: EXPORT.roots });
+					if (!importedSpecs.has(payload)) prepared = await prepareDesign(payload, { roots: EXPORT.roots });
 				}
 				const limit = BATCH_LIMITS[name];
 				const batch = limit && Array.isArray(resolved.args.ids) ? resolved.args.ids : null;

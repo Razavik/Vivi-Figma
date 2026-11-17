@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { WebSocketServer } from "ws";
 import { MAX_PAYLOAD } from "./limits.mjs";
 import { createRelay } from "./mcp-relay.mjs";
+import { createManualImporter } from "./manual-import.mjs";
 
 // server/.env (KEY=VALUE): PORT и др. Уже заданные env не трогаем.
 const serverDir = dirname(fileURLToPath(import.meta.url));
@@ -60,6 +61,7 @@ function servePlugin(socket) {
 		send: (message) => socket.send(JSON.stringify(message)),
 		isOpen: () => socket.readyState === socket.OPEN,
 	};
+	const importer = createManualImporter(plugin);
 	relay.add(plugin);
 	socket.on("message", (raw) => {
 		let msg;
@@ -69,11 +71,13 @@ function servePlugin(socket) {
 			return;
 		}
 		relay.touch(plugin);
-		if (msg?.type === "mcp_result") relay.result(msg);
+		if (msg?.type === "mcp_result" && !importer.result(msg)) relay.result(msg);
+		if (msg?.type === "html_import" && typeof msg.reqId === "string" && msg.reqId.length <= 100) void importer.start(msg.reqId, msg.args);
 	});
-	socket.on("close", () => relay.remove(plugin));
-	socket.on("error", () => relay.remove(plugin));
-	socket.send(JSON.stringify({ type: "ready" }));
+	const remove = () => { relay.remove(plugin); importer.dispose(); };
+	socket.on("close", remove);
+	socket.on("error", remove);
+	socket.send(JSON.stringify({ type: "ready", htmlImport: true }));
 }
 
 // Без клиентов (ни агента, ни плагина) мост сам завершается: MCP-сервер

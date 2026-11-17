@@ -9,7 +9,7 @@ function fakePlugin(open = true) {
 }
 
 test("белый список: только инструменты чтения", () => {
-	assert.deepEqual(MCP_TOOL_NAMES.sort(), ["assets", "componentize", "create", "design_system", "edit", "export", "export_assets", "focus", "fonts", "guide", "icons", "node", "outline", "review", "schema", "screenshot", "search", "selection", "status", "styles", "tokens", "undo", "variants"]);
+	assert.deepEqual(MCP_TOOL_NAMES.sort(), ["assets", "componentize", "create", "design_system", "edit", "export", "export_assets", "focus", "fonts", "guide", "html_to_design", "icons", "node", "outline", "review", "schema", "screenshot", "search", "selection", "status", "styles", "tokens", "undo", "variants"]);
 	assert.equal(isMcpTool("apply_edits"), false);
 	assert.equal(isMcpTool("toString"), false);
 });

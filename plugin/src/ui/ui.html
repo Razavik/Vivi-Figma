@@ -9,6 +9,42 @@
 			<span id="dot" class="dot"></span>
 			<span id="state" class="state">Подключение к мосту…</span>
 		</div>
+		<main>
+			<h1>Сайт → дизайн</h1>
+			<p class="intro">Вставьте ссылку — страница появится на холсте редактируемыми слоями.</p>
+			<form id="import-form">
+				<fieldset id="import-fields">
+					<label for="url">Адрес сайта</label>
+					<input id="url" type="url" placeholder="https://example.com" required autocomplete="url" spellcheck="false" />
+					<label for="preset">Размер экрана</label>
+					<select id="preset">
+						<option value="desktop">Десктоп · 1440 × 900</option>
+						<option value="mobile">Телефон · 390 × 844</option>
+						<option value="tablet">Планшет · 768 × 1024</option>
+						<option value="custom">Свой размер</option>
+					</select>
+					<div class="dimensions">
+						<div><label for="width">Ширина, px</label><input id="width" type="number" min="320" max="4096" step="1" value="1440" required /></div>
+						<div><label for="height">Высота, px</label><input id="height" type="number" min="200" max="4096" step="1" value="900" required /></div>
+					</div>
+					<label class="check"><input id="mobile" type="checkbox" />Мобильный режим</label>
+					<details>
+						<summary>Дополнительные настройки</summary>
+						<label for="selector">Только блок <span class="muted">· CSS-селектор</span></label>
+						<input id="selector" type="text" placeholder="Например, main или #hero" spellcheck="false" />
+						<label for="wait-for">Дождаться элемента <span class="muted">· CSS-селектор</span></label>
+						<input id="wait-for" type="text" placeholder="Например, .content-loaded" spellcheck="false" />
+						<label for="wait-ms">Дополнительное ожидание, мс</label>
+						<input id="wait-ms" type="number" min="0" max="10000" step="100" value="500" required />
+						<label class="check"><input id="scroll" type="checkbox" checked />Прокрутить для загрузки контента</label>
+					</details>
+				</fieldset>
+				<button id="import-button" type="submit" disabled>Перенести в Figma</button>
+			</form>
+			<p id="import-result" class="result" role="status" aria-live="polite"></p>
+			<details id="warnings" hidden><summary>Замечания импорта</summary><ul id="warning-list"></ul></details>
+			<p class="hint">Можно указать localhost. Для связи нужен запущенный локальный мост Vivi.</p>
+		</main>
 		<script src="./ui.js"></script>
 	</body>
 </html>

@@ -3,7 +3,7 @@
 // Спеку к этому моменту уже подготовил Node-сторона (иконки → svg, фото → байты).
 import { buildRoot, placeAnchored, type ReplacePlace } from "./builder";
 import type { AnySpec } from "./canvas-state";
-import { state } from "./canvas-state";
+import { diag, state } from "./canvas-state";
 import { flushStyleBindings, loadDesignSystem } from "./designsystem";
 import { applyEditOp, type EditOp } from "./edits";
 import { lint, setRequestLang, type Issue, type LintNode } from "./lint";
@@ -21,8 +21,7 @@ let lastRunId = 0;
 let versionSaved = false;
 
 function resetState(): void {
-	state.warnings.length = 0;
-	state.infos.length = 0;
+	diag.reset();
 	state.nodeCount = 0;
 	state.namedComponents.clear();
 	state.prebuilt.clear();
@@ -204,7 +203,7 @@ export async function runCreate(args: Record<string, unknown>): Promise<WriteRes
 				size: [Math.round(root.width), Math.round(root.height)],
 				position: [Math.round(root.x), Math.round(root.y)],
 				count: state.nodeCount,
-				warnings: state.warnings.slice(),
+				warnings: diag.take().warnings,
 				...splitIssues(lintNodes([root])),
 				tree: treeOf(root),
 				undoRuns: undoableRuns().length,
@@ -268,8 +267,7 @@ export async function runEdit(args: Record<string, unknown>): Promise<WriteResul
 		ok: true,
 		data: {
 			applied: ops.length,
-			warnings: state.warnings.slice(),
-			infos: state.infos.slice(),
+			...diag.take(),
 			...splitIssues(lintNodes(nodes)),
 			changed: nodes.slice(0, 5).map((n) => ({ id: n.id, name: n.name, tree: treeOf(n, 120) })),
 			aliases: Object.fromEntries([...aliases].filter(([k]) => k !== "page")),

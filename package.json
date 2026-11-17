@@ -1,7 +1,7 @@
 {
 	"name": "vivi-figma-mcp",
-	"version": "0.5.0",
-	"description": "MCP-сервер: ИИ-агенты (Claude Code, Cursor, Devin…) смотрят дизайн в открытом файле Figma, выгружают из него картинки и создают/правят дизайн настоящими нодами.",
+	"version": "0.6.0",
+	"description": "MCP-сервер и плагин Figma: чтение и редактирование дизайна, экспорт ассетов, перенос HTML и динамических сайтов в редактируемые слои с поддержкой мобильных экранов.",
 	"license": "MIT",
 	"type": "module",
 	"keywords": [
@@ -41,16 +41,18 @@
 		"test:plugin": "npm --prefix plugin test",
 		"prepublishOnly": "node scripts/build-icons.mjs && npm --prefix plugin install && npm --prefix plugin run build && npm test && node scripts/smoke.mjs",
 		"build:icons": "node scripts/build-icons.mjs",
+		"setup:browser": "playwright install chromium",
 		"smoke": "node scripts/smoke.mjs"
 	},
 	"dependencies": {
 		"@modelcontextprotocol/sdk": "^1.29.0",
+		"playwright": "^1.65.1",
 		"qrcode": "^1.5.4",
 		"ws": "^8.18.0",
 		"zod": "^4.6.7"
 	},
 	"engines": {
-		"node": ">=18.0.0"
+		"node": ">=20.0.0"
 	},
 	"devDependencies": {
 		"lucide-static": "^1.61.0"

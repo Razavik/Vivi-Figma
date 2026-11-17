@@ -126,6 +126,41 @@ const SPEC_BRIEF = `Spec = a tree of nodes, each {"type":...}: frame (layout non
 const fileField = z.string().optional().describe("Expected name of the open Figma file (from figma_status): the write is refused if another file is open now");
 
 export const MCP_TOOLS_WRITE = {
+	html_to_design: {
+		write: true,
+		macro: true,
+		dry: true,
+		timeoutMs: 180_000,
+		description: "Import HTML/CSS or a dynamic website into the open Figma file as editable layers. Provide exactly one of html, path (inside the project), or url (http/https, including a local dev server). Chromium executes JavaScript by default; waitFor waits for a visible CSS selector, waitMs adds a delay for hydration/data. width/height set the viewport BEFORE loading (CSS pixels; media queries and JS responsive layouts work); isMobile enables mobile/touch emulation. selector imports one section. Captures the current state, not application behavior: text/frames/SVG remain editable, canvas/video/images are raster layers. Layout uses fixed coordinates, not auto-layout; unsupported CSS is reported. dry:true returns the spec without Figma. Undo writes with figma_undo. Needs Chromium: npx playwright install chromium.",
+		input: {
+			html: z.string().max(2 * 1024 * 1024).optional().describe("HTML document or fragment"),
+			path: z.string().optional().describe("HTML file inside the project, UTF-8; relative assets resolve next to it"),
+			url: z.string().url().optional().describe("Dynamic website or local dev-server URL (http/https)"),
+			css: z.string().max(2 * 1024 * 1024).optional().describe("Additional CSS, injected after loading"),
+			width: z.number().int().min(320).max(4096).optional().describe("Viewport width in CSS px, default 1440; e.g. 390 for mobile"),
+			height: z.number().int().min(200).max(4096).optional().describe("Viewport height in CSS px, default 900"),
+			isMobile: z.boolean().optional().describe("Mobile viewport/touch emulation, default false; websites should have a viewport meta tag"),
+			userAgent: z.string().max(1024).optional().describe("Custom user agent; isMobile defaults to an Android Mobile UA"),
+			deviceScaleFactor: z.number().min(1).max(3).optional().describe("Pixel density for raster assets, default 1; does not change CSS layout width"),
+			colorScheme: z.enum(["light", "dark"]).optional(),
+			javascript: z.boolean().optional().describe("Execute page scripts, default true"),
+			allowNetwork: z.boolean().optional().describe("Load external resources/API requests; default true for url, false for html/path"),
+			waitFor: z.string().optional().describe("CSS selector to wait for after loading (visible, up to 20 seconds)"),
+			waitMs: z.number().int().min(0).max(10000).optional().describe("Extra wait after waitFor, milliseconds"),
+			scroll: z.boolean().optional().describe("Scroll up to 20 viewports to trigger lazy-loaded content, then return to the top before capture"),
+			selector: z.string().optional().describe("Root CSS selector, default the whole page"),
+			name: z.string().optional().describe("Imported root frame name"),
+			maxNodes: z.number().int().min(1).max(600).optional().describe("Refuse larger imports; default 600. Use selector to import sections"),
+			dry: z.boolean().optional(),
+			parent: z.string().optional(),
+			after: z.string().optional(),
+			direction: z.enum(["right", "below"]).optional(),
+			x: z.number().optional(),
+			y: z.number().optional(),
+			quiet: z.boolean().optional(),
+			file: fileField,
+		},
+	},
 	create: {
 		write: true,
 		prepare: true,
@@ -296,7 +331,7 @@ export function isMcpTool(name) {
 
 // Инструменты, которые уходят в плагин (без local).
 export function isPluginTool(name) {
-	return isMcpTool(name) && !MCP_TOOLS[name].local;
+	return isMcpTool(name) && !MCP_TOOLS[name].local && !MCP_TOOLS[name].macro;
 }
 
 export function timeoutFor(name, fallback) {

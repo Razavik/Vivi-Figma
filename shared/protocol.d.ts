@@ -4,6 +4,7 @@
 // Мост → плагин UI: мост поднялся и принимает вызовы.
 export interface BridgeReady {
 	type: "ready";
+	htmlImport?: boolean;
 }
 
 // MCP-сервер → мост → плагин UI → main-код: вызов инструмента.
@@ -24,4 +25,26 @@ export interface BridgeResult {
 	images?: { data: string; mimeType: string }[];
 }
 
-export type BridgeMessage = BridgeReady | BridgeCall | BridgeResult;
+export interface HtmlImport {
+	type: "html_import";
+	reqId: string;
+	args: { url: string; width: number; height: number; isMobile: boolean; waitFor?: string; waitMs?: number; selector?: string; scroll?: boolean };
+}
+
+export interface HtmlImportProgress {
+	type: "html_import_progress";
+	reqId: string;
+	stage: "render" | "build";
+}
+
+export interface HtmlImportResult {
+	type: "html_import_result";
+	reqId: string;
+	ok: boolean;
+	rootId?: string;
+	count?: number;
+	warnings?: string[];
+	error?: string;
+}
+
+export type BridgeMessage = BridgeReady | BridgeCall | BridgeResult | HtmlImport | HtmlImportProgress | HtmlImportResult;
