@@ -22,6 +22,7 @@ import {
 	applyPosition,
 	applyLook,
 	applySpans,
+	figmaFontSize,
 	ensureFont,
 	loadTextFonts,
 	spansText,
@@ -154,7 +155,8 @@ async function applyUpdate(node: SceneNode, op: EditOp): Promise<void> {
 		const joined = spansText(op.spans);
 		if (joined !== undefined) t.characters = joined;
 		else if (typeof op.text === "string") t.characters = op.text;
-		if (typeof op.fontSize === "number") t.fontSize = op.fontSize;
+		const fontSize = figmaFontSize(op.fontSize);
+		if (fontSize !== undefined) t.fontSize = fontSize;
 		if (typeof op.color === "string") {
 			const { color, alpha } = hexToRgba(op.color);
 			t.fills = [{ type: "SOLID", color, opacity: alpha }];

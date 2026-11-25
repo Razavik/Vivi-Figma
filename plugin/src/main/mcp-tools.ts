@@ -339,7 +339,7 @@ export async function runMcpTool(tool: unknown, args: Record<string, unknown>): 
 				return await runUndo(args);
 			case "design_system": {
 				const ds = await loadDesignSystem();
-				return { ok: true, data: { ...ds, components: loadComponents() } };
+				return { ok: true, data: { ...ds, components: await loadComponents() } };
 			}
 			default:
 				return { ok: false, error: `нет обработчика инструмента: ${String(tool)}` };

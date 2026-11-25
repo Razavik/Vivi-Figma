@@ -50,6 +50,7 @@ export interface BaseSpec {
 	bottom?: number;
 	/** Поворот в градусах по часовой, вокруг центра. */
 	rotation?: number;
+	ellipse?: boolean;
 	/** Размытие самой ноды и фона под ней («стекло»), px. 0 — убрать. */
 	layerBlur?: number;
 	backgroundBlur?: number;

@@ -1,7 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildNode, placeAnchored } from "../src/main/builder";
+import { buildNode, figmaFontSize, placeAnchored } from "../src/main/builder";
 import { state } from "../src/main/canvas-state";
+
+test("font sizes are valid before assignment to the Figma API", () => {
+	assert.equal(figmaFontSize(0), 1);
+	assert.equal(figmaFontSize(0.25), 1);
+	assert.equal(figmaFontSize(16), 16);
+	assert.equal(figmaFontSize(Number.NaN), undefined);
+	assert.equal(figmaFontSize(Number.POSITIVE_INFINITY), undefined);
+});
 
 test("captured text line never wraps again at a narrower browser measurement", async () => {
 	const previous = globalThis.figma;

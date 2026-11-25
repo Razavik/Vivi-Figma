@@ -172,9 +172,10 @@ export async function restoreRuns(): Promise<void> {
 	current = null;
 	remap.clear();
 	const history = findHistoryPage();
+	if (history) await history.loadAsync();
 	// Устаревшие копии со времён, когда backup лежал на рабочей странице.
 	for (const p of figma.root.children) {
-		if (p.type !== "PAGE" || p === history) continue;
+		if (p !== figma.currentPage || p === history) continue;
 		for (const n of [...p.children]) {
 			if (n.getPluginData(BACKUP_KEY)) {
 				try {

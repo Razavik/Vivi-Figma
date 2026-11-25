@@ -1,31 +1,49 @@
 // HTML → спека Vivi: Chromium считает CSS и выполняет приложение, Figma получает
 // редактируемые слои с координатами зафиксированного состояния страницы.
-import { readFile, realpath } from "node:fs/promises";
+import { readFile, realpath, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { dirname, extname, isAbsolute, resolve, sep } from "node:path";
+import { extname, isAbsolute, relative, resolve, sep } from "node:path";
 import { chromium } from "playwright";
 import { validateSpec } from "./design-pipeline.mjs";
 
 const ORIGIN = "https://vivi-import.invalid";
-const MIME = { ".html": "text/html", ".htm": "text/html", ".css": "text/css", ".js": "text/javascript", ".mjs": "text/javascript", ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".gif": "image/gif", ".woff": "font/woff", ".woff2": "font/woff2", ".ttf": "font/ttf" };
+const ENTRY = "__vivi_entry__.html";
+export const HTML_ASSET_TYPES = { ".html": "text/html", ".htm": "text/html", ".css": "text/css", ".js": "text/javascript", ".mjs": "text/javascript", ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".avif": "image/avif", ".gif": "image/gif", ".ico": "image/x-icon", ".woff": "font/woff", ".woff2": "font/woff2", ".ttf": "font/ttf", ".otf": "font/otf" };
+export const isHtmlFile = (path) => /\.html?$/i.test(path);
+export const isAssetPath = (path) => !/[\\:\x00-\x1f]/.test(path) && path.split("/").every((part) => part && part !== "." && part !== "..");
+export const withinImportRoot = (root, path) => {
+	const rel = relative(root, path);
+	return !isAbsolute(rel) && rel !== ".." && !rel.startsWith(".." + sep);
+};
 
 // realpath закрывает выход через ../ и симлинки; локальные ресурсы доступны
 // только внутри явно разрешённых корней проекта, как у импорта картинок.
-export async function localImportFile(path, roots) {
+async function resolveLocalFile(path, roots) {
 	if (!roots?.length) throw new Error("HTML: не определён корень проекта");
-	const full = await realpath(isAbsolute(path) ? path : resolve(roots[0], path));
-	const allowed = await Promise.all(roots.map((r) => realpath(r).catch(() => resolve(r))));
-	if (!allowed.some((r) => full === r || full.startsWith(r.endsWith(sep) ? r : r + sep))) throw new Error("HTML: файл вне проекта");
-	return full;
+	const base = roots.map((r) => resolve(r));
+	const requested = resolve(base[0], path);
+	const candidates = base.filter((r) => withinImportRoot(r, requested));
+	if (!candidates.length) throw new Error("HTML: файл вне проекта");
+	const full = await realpath(requested);
+	const allowed = await Promise.all(candidates.map((r) => realpath(r).catch(() => r)));
+	const root = allowed.find((r) => withinImportRoot(r, full));
+	if (!root) throw new Error("HTML: файл вне проекта");
+	if (!(await stat(full)).isFile()) throw new Error("HTML: укажите файл, а не папку");
+	return { full, root };
+}
+
+export async function localImportFile(path, roots) {
+	return (await resolveLocalFile(path, roots)).full;
 }
 
 export function checkHtmlInput(args) {
-	if ([args.html, args.path, args.url].filter((v) => typeof v === "string" && v.trim()).length !== 1)
-		throw new Error("HTML: укажите ровно один источник — html, path или url");
+	if ([args.html, args.path, args.url].filter((v) => typeof v === "string" && v.trim()).length + Number(Boolean(args.upload)) !== 1)
+		throw new Error("HTML: укажите ровно один источник");
 	if (args.url && !["http:", "https:"].includes(new URL(args.url).protocol)) throw new Error("HTML: url должен быть http:// или https://");
 }
 
-export async function htmlToDesign(args, { roots = [], executablePath = process.env.VIVI_CHROMIUM_EXECUTABLE } = {}) {
+export async function htmlToDesign(args, { roots = [], executablePath = process.env.VIVI_CHROMIUM_EXECUTABLE, signal } = {}) {
+	signal?.throwIfAborted();
 	checkHtmlInput(args);
 	const width = args.width ?? 1440;
 	const height = args.height ?? 900;
@@ -35,13 +53,16 @@ export async function htmlToDesign(args, { roots = [], executablePath = process.
 	if (maxNodes !== undefined && (!Number.isInteger(maxNodes) || maxNodes < 1)) throw new Error("HTML: maxNodes должен быть положительным целым числом");
 	if (!Number.isInteger(args.waitMs ?? 0) || (args.waitMs ?? 0) < 0 || (args.waitMs ?? 0) > 10_000) throw new Error("HTML: waitMs 0–10000");
 	if (!Number.isFinite(args.deviceScaleFactor ?? 1) || (args.deviceScaleFactor ?? 1) < 1 || (args.deviceScaleFactor ?? 1) > 3) throw new Error("HTML: deviceScaleFactor 1–3");
-	const sourcePath = args.path ? await localImportFile(args.path, roots) : null;
-	const html = sourcePath ? await readFile(sourcePath, "utf8") : args.html;
-	const baseDir = sourcePath ? dirname(sourcePath) : roots[0];
+	const local = args.path ? await resolveLocalFile(args.path, roots) : null;
+	const entry = args.upload?.entry ?? (local ? relative(local.root, local.full).split(sep).join("/") : ENTRY);
+	const entryBody = local ? await readFile(local.full, { signal }) : args.upload ? args.upload.files.get(entry) : args.html;
+	const entryUrl = args.url || `${ORIGIN}/${entry.split("/").map(encodeURIComponent).join("/")}`;
+	const localRoots = local ? [local.root] : roots;
 	const allowNetwork = args.allowNetwork ?? Boolean(args.url);
 	const warnings = new Set();
 	const imageResponses = new Map();
 	let browser;
+	signal?.throwIfAborted();
 	try {
 		// На Windows можно работать сразу с установленным Edge/Chrome, даже если
 		// отдельный Chromium ещё не скачан. Пользовательский профиль не используется.
@@ -53,7 +74,11 @@ export async function htmlToDesign(args, { roots = [], executablePath = process.
 	} catch (err) {
 		throw new Error(`HTML: не удалось запустить Chromium. Выполните npx playwright install chromium (или задайте VIVI_CHROMIUM_EXECUTABLE). ${err.message}`);
 	}
+	let closing;
+	const close = () => closing ??= browser.close().catch(() => {});
+	signal?.addEventListener("abort", close, { once: true });
 	try {
+		signal?.throwIfAborted();
 		const userAgent = args.userAgent || (args.isMobile ? `Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${browser.version()} Mobile Safari/537.36` : undefined);
 		const context = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: args.deviceScaleFactor ?? 1, isMobile: args.isMobile ?? false, hasTouch: args.isMobile ?? false, userAgent, javaScriptEnabled: args.javascript !== false, bypassCSP: true, serviceWorkers: "block", acceptDownloads: false, reducedMotion: "reduce", colorScheme: args.colorScheme ?? "light" });
 		if (!allowNetwork) await context.routeWebSocket("**/*", (ws) => ws.close());
@@ -61,16 +86,18 @@ export async function htmlToDesign(args, { roots = [], executablePath = process.
 			const request = route.request();
 			const url = new URL(request.url());
 			try {
-				if (url.origin === ORIGIN) {
-					if (url.pathname === "/__vivi_entry__.html") {
-						await route.fulfill({ contentType: "text/html; charset=utf-8", body: html });
+				if (!args.url && url.origin === ORIGIN) {
+					const asset = decodeURIComponent(url.pathname.slice(1));
+					if (!isAssetPath(asset)) throw new Error("некорректный путь ресурса");
+					if (asset === entry) {
+						await route.fulfill({ contentType: "text/html; charset=utf-8", body: entryBody });
 						return;
 					}
-					if (!baseDir) throw new Error("нет корня для локальных ресурсов");
-					const file = await localImportFile(resolve(baseDir, "." + decodeURIComponent(url.pathname)), roots);
-					const contentType = MIME[extname(file).toLowerCase()];
+					const contentType = HTML_ASSET_TYPES[extname(asset).toLowerCase()];
 					if (!contentType) throw new Error("неподдерживаемый тип ресурса");
-					await route.fulfill({ contentType, body: await readFile(file) });
+					const body = args.upload ? args.upload.files.get(asset) : await readFile(await localImportFile(asset, localRoots), { signal });
+					if (!body) throw new Error("ресурс не загружен");
+					await route.fulfill({ contentType, body });
 					return;
 				}
 				if (allowNetwork && ["http:", "https:"].includes(url.protocol)) {
@@ -79,13 +106,25 @@ export async function htmlToDesign(args, { roots = [], executablePath = process.
 					return await route.continue();
 				}
 				if (url.protocol === "data:") return await route.continue();
-				warnings.add("Внешние ресурсы отключены; для их загрузки передайте allowNetwork:true.");
+				warnings.add("Внешние ресурсы отключены. Включите «Загружать внешние ресурсы» (allowNetwork:true).");
 			} catch (err) {
 				warnings.add(`Не загружен ресурс ${url.pathname.slice(0, 120)}: ${err.message}`);
 			}
 			await route.abort().catch(() => {});
 		});
 		const page = await context.newPage();
+		// A local page may reference an optional CDN widget before its own
+		// DOMContentLoaded handler. Keep that handler from aborting the whole
+		// page when the optional library is unavailable offline.
+		await page.addInitScript(() => {
+			if (typeof window.IMask !== "function") {
+				window.IMask = (input) => ({
+					destroy() {},
+					set value(value) { if (input) input.value = value; },
+					get value() { return input?.value || ""; },
+				});
+			}
+		});
 		page.on("response", (response) => {
 			if (response.ok() && response.request().resourceType() === "image") {
 				imageResponses.set(response.url(), response.body().then((body) => ({ body, contentType: response.headers()["content-type"] || "application/octet-stream" })).catch(() => null));
@@ -93,7 +132,7 @@ export async function htmlToDesign(args, { roots = [], executablePath = process.
 		});
 		page.setDefaultTimeout(15_000);
 		page.on("pageerror", (err) => warnings.add(`Ошибка JavaScript: ${err.message.slice(0, 160)}`));
-		await page.goto(args.url || `${ORIGIN}/__vivi_entry__.html`, { waitUntil: "domcontentloaded", timeout: 30_000 });
+		await page.goto(entryUrl, { waitUntil: "domcontentloaded", timeout: 30_000 });
 		if (args.css) await page.evaluate((css) => {
 			const style = document.createElement("style");
 			style.textContent = css;
@@ -101,27 +140,37 @@ export async function htmlToDesign(args, { roots = [], executablePath = process.
 		}, args.css);
 		if (args.scroll) {
 			// Cover the entire initial document, without chasing an infinite feed.
-			const extent = await page.evaluate(() => document.documentElement.scrollHeight);
-			for (let offset = 0; offset < extent; offset += height) {
-				const done = await page.evaluate(() => {
-					const before = scrollY;
-					scrollBy(0, innerHeight);
-					return scrollY === before;
-				});
-				await page.waitForTimeout(100);
-				if (done) break;
+			const { end, step } = await page.evaluate(() => ({
+				end: Math.max(0, (document.scrollingElement || document.documentElement).scrollHeight - innerHeight),
+				step: Math.max(1, Math.floor(innerHeight * 0.8)),
+			}));
+			for (let offset = 0; ; offset = Math.min(end, offset + step)) {
+				// Instant steps override smooth scrolling and overlap observer viewports.
+				await page.evaluate((top) => scrollTo({ top, behavior: "instant" }), offset);
+				await page.waitForTimeout(70);
+				if (offset === end) break;
 			}
-			await page.evaluate(() => scrollTo(0, 0));
+			await page.evaluate(() => scrollTo({ top: 0, behavior: "instant" }));
 		}
 		if (args.waitFor) await page.locator(args.waitFor).first().waitFor({ state: "visible", timeout: 20_000 });
 		if (args.waitMs) await page.waitForTimeout(args.waitMs);
-		await page.evaluate(() => Promise.race([Promise.all([...document.images].filter((img) => img.loading !== "lazy" || img.getBoundingClientRect().top < innerHeight).map((img) => img.decode().catch(() => {}))), new Promise((r) => setTimeout(r, 3000))]));
-		await page.evaluate(() => Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 3000))]));
+		// waitMs already covers the reveal transition when it is long enough;
+		// avoid adding another full delay on top of the user's setting.
+		await page.waitForTimeout(Math.max(0, 1100 - (args.waitMs ?? 0)));
+		await Promise.all([
+			page.evaluate(() => Promise.race([Promise.all([...document.images].filter((img) => img.loading !== "lazy" || img.getBoundingClientRect().top < innerHeight).map((img) => img.decode().catch(() => {}))), new Promise((r) => setTimeout(r, 3000))])),
+			page.evaluate(() => Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 3000))])),
+		]);
 		await page.evaluate(() => {
 			const style = document.createElement("style");
 			style.textContent = "*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}";
 			document.documentElement.append(style);
 		});
+		if (args.javascript !== false) await page.evaluate(() => Promise.race([
+			new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+			new Promise((resolve) => setTimeout(resolve, 250)),
+		]));
+		await page.waitForTimeout(50);
 		const captureKey = `data-vivi-${Math.random().toString(36).slice(2)}`;
 		// Return JSON text: Playwright's object serializer has its own shallow
 		// reference-chain limit, independent of the number of imported layers.
@@ -142,6 +191,7 @@ export async function htmlToDesign(args, { roots = [], executablePath = process.
 		collect(result.spec);
 		let backgroundPage;
 		for (const asset of assets) {
+			signal?.throwIfAborted();
 			try {
 				let target;
 				if (asset.background || asset.image || asset.control) {
@@ -205,16 +255,19 @@ export async function htmlToDesign(args, { roots = [], executablePath = process.
 				asset.node.data = data;
 				asset.node.mime = mime;
 			} catch (err) {
+				signal?.throwIfAborted();
 				asset.node.type = "rect";
 				asset.node.fill = "#E4E4E7";
 				warnings.add(`Изображение «${asset.node.name}» заменено заглушкой: ${err.message.slice(0, 120)}`);
 			}
 		}
+		signal?.throwIfAborted();
 		const bad = validateSpec(result.spec, { limits: false });
 		if (bad) throw new Error(bad);
 		return { spec: result.spec, warnings: [...warnings].slice(0, 40), source: { url: args.url || null, viewport: { width, height }, isMobile: args.isMobile ?? false, deviceScaleFactor: args.deviceScaleFactor ?? 1, javascript: args.javascript !== false, nodes: result.count, layout: result.layout } };
 	} finally {
-		await browser.close();
+		signal?.removeEventListener("abort", close);
+		await close();
 	}
 }
 
@@ -226,7 +279,7 @@ async function snapshotDOM({ selector, name, maxNodes, captureKey, autoLayout })
 	const assets = [];
 	const cssLayers = new WeakMap();
 	let count = 0;
-	const skip = new Set(["SCRIPT", "STYLE", "LINK", "META", "NOSCRIPT", "TEMPLATE", "HEAD"]);
+	const skip = new Set(["SCRIPT", "STYLE", "LINK", "META", "NOSCRIPT", "TEMPLATE", "HEAD", "BR"]);
 	const svgDocuments = new Map();
 	const documentUrl = new URL(location.href); documentUrl.hash = "";
 	svgDocuments.set(documentUrl.href, document);
@@ -297,14 +350,30 @@ async function snapshotDOM({ selector, name, maxNodes, captureKey, autoLayout })
 		if (["sans-serif", "system-ui"].includes(family)) family = "Inter";
 		if (family === "serif") family = "Times New Roman";
 		if (family === "monospace") family = "Courier New";
-		return { fontFamily: family, fontSize: n(c.fontSize), fontWeight: weights[Math.max(0, Math.min(8, Math.round(n(c.fontWeight) / 100) - 1))], color: color(c.color), lineHeight: c.lineHeight === "normal" ? round(n(c.fontSize) * 1.2) : n(c.lineHeight), letterSpacing: n(c.letterSpacing), ...(c.textDecorationLine.includes("underline") ? { textDecoration: "underline" } : c.textDecorationLine.includes("line-through") ? { textDecoration: "strike" } : {}) };
+		return { fontFamily: family, fontSize: n(c.fontSize), fontWeight: weights[Math.max(0, Math.min(8, Math.round(n(c.fontWeight) / 100) - 1))], ...(c.lineHeight !== "normal" ? { lineHeight: n(c.lineHeight) } : {}), color: color(c.color), letterSpacing: n(c.letterSpacing), ...(c.textTransform === "uppercase" ? { textCase: "upper" } : c.textTransform === "lowercase" ? { textCase: "lower" } : {}), ...(c.textAlign === "center" ? { align: "center" } : c.textAlign === "right" ? { align: "right" } : {}), ...(c.textDecorationLine.includes("underline") ? { textDecoration: "underline" } : c.textDecorationLine.includes("line-through") ? { textDecoration: "strike" } : {}) };
 	}
 	function textNodes(text, element, origin) {
 		const c = getComputedStyle(element);
 		if (c.visibility !== "visible") return [];
 		const style = font(c);
+		const lineHeight = style.lineHeight ?? round(style.fontSize * 1.2);
 		const lines = [];
 		const range = document.createRange();
+		if (c.rotate !== "none" || c.transform !== "none") {
+			const oldRotate = element.style.rotate;
+			const oldTransform = element.style.transform;
+			element.style.setProperty("rotate", "none", "important");
+			element.style.setProperty("transform", "none", "important");
+			range.selectNodeContents(text);
+			const b = range.getBoundingClientRect();
+			element.style.rotate = oldRotate;
+			element.style.transform = oldTransform;
+			let content = text.data;
+			if (!c.whiteSpace.startsWith("pre") && c.whiteSpace !== "break-spaces") content = content.replace(/\s+/g, " ");
+			if (c.textTransform === "uppercase") content = content.toUpperCase();
+			if (c.textTransform === "lowercase") content = content.toLowerCase();
+			return content.trim() ? [take({ type: "text", name: content.slice(0, 60), text: content, ...style, noWrap: true, x: round(b.x - origin.x), y: round(b.y - origin.y - (lineHeight - b.height) / 2), w: round(b.width + 1), h: round(lineHeight) })] : [];
+		}
 		for (let i = 0; i < text.length; i++) {
 			range.setStart(text, i);
 			range.setEnd(text, i + 1);
@@ -324,11 +393,85 @@ async function snapshotDOM({ selector, name, maxNodes, captureKey, autoLayout })
 			if (!c.whiteSpace.startsWith("pre") && c.whiteSpace !== "break-spaces") content = content.replace(/\s+/g, " ");
 			if (c.textTransform === "uppercase") content = content.toUpperCase();
 			if (c.textTransform === "lowercase") content = content.toLowerCase();
-			return take({ type: "text", name: content.slice(0, 60), text: content, ...style, noWrap: true, x: round(l.x - origin.x), y: round(l.y - origin.y - (style.lineHeight - l.height) / 2), w: round(l.right - l.x + 1), h: round(style.lineHeight) });
+			content = content.trim();
+			return content ? take({ type: "text", name: content.slice(0, 60), text: content, ...style, noWrap: true, x: round(l.x - origin.x), y: round(l.y - origin.y - (lineHeight - l.height) / 2), w: round(l.right - l.x + 1), h: round(lineHeight) }) : null;
 		});
 	}
+	function inlineTextLayer(el, origin, box, c) {
+		if (!/^H[1-6]$|^P$/.test(el.tagName)) return null;
+		if (c.backgroundImage !== "none" || c.backgroundColor !== "rgba(0, 0, 0, 0)" || c.borderStyle !== "none" || ["absolute", "fixed", "sticky"].includes(c.position)) return null;
+		const spans = [];
+		let valid = true;
+		let rich = false;
+		function collect(parent) {
+			for (const child of parent.childNodes) {
+				if (child.nodeType === 3) {
+					if (!child.data) continue;
+					const style = font(getComputedStyle(child.parentElement || el));
+					spans.push({ text: child.data, fontFamily: style.fontFamily, fontSize: style.fontSize, fontWeight: style.fontWeight, color: style.color, ...(style.textDecoration ? { textDecoration: style.textDecoration } : {}) });
+				} else if (child.nodeType === 1 && getComputedStyle(child).display === "none") {
+					continue;
+				} else if (child.nodeType === 1 && child.tagName === "BR") {
+					rich = true;
+					spans.push({ text: "\n" });
+				} else if (child.nodeType === 1 && getComputedStyle(child).display.startsWith("inline")) {
+					rich = true;
+					collect(child);
+				} else {
+					valid = false;
+				}
+			}
+		}
+		collect(el);
+		const newline = String.fromCharCode(10);
+		for (const span of spans) if (span.text !== newline) {
+			span.text = span.text.replaceAll(newline, " ").replaceAll(String.fromCharCode(13), " ").replaceAll(String.fromCharCode(9), " ");
+			while (span.text.includes("  ")) span.text = span.text.replaceAll("  ", " ");
+		}
+		if (spans.length && spans[0].text !== newline) spans[0].text = spans[0].text.trimStart();
+		if (spans.length && spans.at(-1).text !== newline) spans.at(-1).text = spans.at(-1).text.trimEnd();
+		for (let i = 0; i < spans.length; i++) if (spans[i].text === newline) {
+			if (spans[i - 1]) spans[i - 1].text = spans[i - 1].text.trimEnd();
+			if (spans[i + 1]) spans[i + 1].text = spans[i + 1].text.trimStart();
+		}
+		for (let i = spans.length - 1; i >= 0; i--) if (!spans[i].text) spans.splice(i, 1);
+		const text = spans.map((span) => span.text).join("");
+		if (!valid || !rich || !text.trim() || spans.length < 2) return null;
+		const oldRotate = el.style.rotate;
+		const oldTransform = el.style.transform;
+		el.style.setProperty("rotate", "none", "important");
+		el.style.setProperty("transform", "none", "important");
+		const range = document.createRange();
+		range.selectNodeContents(el);
+		const measured = range.getBoundingClientRect();
+		el.style.rotate = oldRotate;
+		el.style.transform = oldTransform;
+		return trackLayer(take({ type: "text", name: text.slice(0, 60), text, spans, ...font(c), x: box.x, y: box.y, w: box.w, h: box.h }), el, c);
+	}
 	function createsStack(c) {
-		return c.opacity !== "1" || c.transform !== "none" || c.filter !== "none" || c.isolation === "isolate" || c.mixBlendMode !== "normal" || c.position === "fixed" || c.position === "sticky" || c.perspective !== "none" || /(?:paint|layout|strict|content)/.test(c.contain) || /(?:transform|opacity|filter)/.test(c.willChange);
+		return c.opacity !== "1" || c.transform !== "none" || c.filter !== "none" || c.backdropFilter !== "none" || c.isolation === "isolate" || c.mixBlendMode !== "normal" || c.position === "fixed" || c.position === "sticky" || c.perspective !== "none" || /(?:paint|layout|strict|content)/.test(c.contain) || /(?:transform|opacity|filter)/.test(c.willChange);
+	}
+	function blurFilter(value) {
+		if (!value || value === "none") return { radius: 0, mixed: false };
+		const match = /(?:^|\s)blur\(([\d.]+)px\)/.exec(value);
+		return { radius: match ? n(match[1]) : 0, mixed: !match || Boolean(value.replace(match[0], "").trim()) };
+	}
+	function blurEffects(style) {
+		const layer = blurFilter(style.filter);
+		const backdrop = blurFilter(style.backdropFilter);
+		if (layer.mixed) warnings.add("В CSS filter для слоёв перенесено только размытие.");
+		if (backdrop.mixed) warnings.add("В CSS backdrop-filter перенесено только размытие фона.");
+		return {
+			...(layer.radius ? { layerBlur: layer.radius } : {}),
+			...(backdrop.radius ? { backgroundBlur: backdrop.radius } : {}),
+		};
+	}
+	function cssAngle(value) {
+		if (!value || value === "none") return 0;
+		const match = /^(-?[\d.]+)(deg|rad|turn)$/.exec(value.trim());
+		if (!match) return 0;
+		const amount = Number(match[1]);
+		return match[2] === "rad" ? amount * 180 / Math.PI : match[2] === "turn" ? amount * 360 : amount;
 	}
 	function layerInfo(el, c) {
 		const flexGrid = el.parentElement && /flex|grid/.test(getComputedStyle(el.parentElement).display);
@@ -357,15 +500,27 @@ async function snapshotDOM({ selector, name, maxNodes, captureKey, autoLayout })
 		if (skip.has(el.tagName)) return [];
 		const c = getComputedStyle(el);
 		if (c.display === "none" || c.contentVisibility === "hidden" || n(c.opacity) === 0) return [];
-		const b = el.getBoundingClientRect();
-		const outsideClip = clip && (b.right <= clip.left || b.left >= clip.right || b.bottom <= clip.top || b.top >= clip.bottom);
+		const visualBox = el.getBoundingClientRect();
+		let b = visualBox;
+		if (c.rotate !== "none") {
+			const oldRotate = el.style.rotate;
+			el.style.setProperty("rotate", "none", "important");
+			b = el.getBoundingClientRect();
+			el.style.rotate = oldRotate;
+		}
+		const outsideClip = clip && (visualBox.right <= clip.left || visualBox.left >= clip.right || visualBox.bottom <= clip.top || visualBox.top >= clip.bottom);
 		const clipsX = ["hidden", "clip", "scroll", "auto"].includes(c.overflowX), clipsY = ["hidden", "clip", "scroll", "auto"].includes(c.overflowY);
 		const childClip = { left: Math.max(clip?.left ?? -Infinity, clipsX ? b.left : -Infinity), right: Math.min(clip?.right ?? Infinity, clipsX ? b.right : Infinity), top: Math.max(clip?.top ?? -Infinity, clipsY ? b.top : -Infinity), bottom: Math.min(clip?.bottom ?? Infinity, clipsY ? b.bottom : Infinity) };
 		if (c.display === "contents" || (!b.width && !b.height)) {
 			return [...el.childNodes].flatMap((ch) => ch.nodeType === 1 ? walk(ch, origin, depth + 1, clip) : ch.nodeType === 3 ? textNodes(ch, el, origin) : []);
 		}
-		const label = pseudoLabels.get(el) || el.getAttribute("aria-label") || el.id || el.tagName.toLowerCase() + (el.classList.length ? "." + [...el.classList].slice(0, 2).join(".") : "");
+		const rawLabel = pseudoLabels.get(el) || el.getAttribute("aria-label") || el.id || el.tagName.toLowerCase() + (el.classList.length ? "." + [...el.classList].slice(0, 2).join(".") : "");
+		const label = el.tagName === "SECTION"
+			? `section.${(el.id || [...el.classList].slice(0, 2).join(".") || "section").replace(/\\s+/g, ".")}`
+			: rawLabel;
 		const box = { name: label.slice(0, 100), x: round(b.x - origin.x), y: round(b.y - origin.y), w: round(Math.max(0.01, b.width)), h: round(Math.max(0.01, b.height)) };
+		const inlineText = inlineTextLayer(el, origin, box, c);
+		if (inlineText) return [inlineText];
 		if (["IMG", "CANVAS", "VIDEO", "IFRAME", "SELECT"].includes(el.tagName)) {
 			if (c.visibility !== "visible" || outsideClip || b.width <= 0 || b.height <= 0) return [];
 			const index = assets.length;
@@ -373,6 +528,12 @@ async function snapshotDOM({ selector, name, maxNodes, captureKey, autoLayout })
 			if (el.tagName === "IMG") {
 				const styles = {};
 				for (const key of ["objectFit", "objectPosition", "borderRadius", "filter", "backgroundColor", "borderTop", "borderRight", "borderBottom", "borderLeft", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft"]) styles[key] = c[key];
+				const blur = blurFilter(c.filter);
+				if (blur.radius && !blur.mixed) {
+					// Keep the blur editable and let it extend beyond the image bounds.
+					node.layerBlur = blur.radius;
+					styles.filter = "none";
+				}
 				node.captureImage = { src: el.currentSrc || el.src, styles };
 				node.opacity = n(c.opacity);
 			}
@@ -407,7 +568,11 @@ async function snapshotDOM({ selector, name, maxNodes, captureKey, autoLayout })
 			inlineSvgUses(clone, document.baseURI);
 			return [trackLayer(take({ type: "icon", ...box, svg: clone.outerHTML }), el, c)];
 		}
-		const node = take({ type: "frame", ...box, layout: "none", fill: c.visibility === "visible" ? color(c.backgroundColor) : "#00000000", clip: ["hidden", "clip", "scroll", "auto"].includes(c.overflowX) || ["hidden", "clip", "scroll", "auto"].includes(c.overflowY), opacity: n(c.opacity), children: [] });
+		const cornerValues = [c.borderTopLeftRadius, c.borderTopRightRadius, c.borderBottomRightRadius, c.borderBottomLeftRadius];
+		const ellipse = b.width > b.height * 1.15 && cornerValues.every((value) => value.endsWith("%") && n(value) >= 50);
+		const node = take({ type: "frame", ...box, layout: "none", fill: c.visibility === "visible" ? color(c.backgroundColor) : "#00000000", clip: ["hidden", "clip", "scroll", "auto"].includes(c.overflowX) || ["hidden", "clip", "scroll", "auto"].includes(c.overflowY), opacity: n(c.opacity), ...(cssAngle(c.rotate) ? { rotation: cssAngle(c.rotate) } : {}), ...(ellipse ? { ellipse: true } : {}), children: [] });
+		const effects = blurEffects(c);
+		Object.assign(node, effects);
 		if (c.visibility === "visible") {
 			node.radius = [c.borderTopLeftRadius, c.borderTopRightRadius, c.borderBottomRightRadius, c.borderBottomLeftRadius].map((v) => v.endsWith("%") ? n(v) / 100 * Math.min(b.width, b.height) : n(v));
 			const sides = ["Top", "Right", "Bottom", "Left"].filter((s) => n(c[`border${s}Width`]) && c[`border${s}Style`] !== "none");
@@ -469,7 +634,7 @@ async function snapshotDOM({ selector, name, maxNodes, captureKey, autoLayout })
 			const info = cssLayers.get(node) || { phase: 0, z: 0 };
 			const absoluteX = x + (node.x || 0);
 			const absoluteY = y + (node.y || 0);
-			const target = parent && (info.positioned || info.stack) ? context : parent;
+			const target = parent;
 			records.set(node, { parent, target, x: absoluteX, y: absoluteY, sequence: sequence++, info });
 			// Сохраняем clipping, иначе поднятый слой вышел бы за CSS overflow.
 			const nextContext = !parent || info.stack || node.clip ? node : context;
@@ -484,6 +649,7 @@ async function snapshotDOM({ selector, name, maxNodes, captureKey, autoLayout })
 			const origin = records.get(record.target);
 			node.x = round(record.x - origin.x);
 			node.y = round(record.y - origin.y);
+			record.info.lifted = true;
 		}
 		for (const node of records.keys()) if (node.children) node.children.sort((a, b) => {
 			const aa = records.get(a), bb = records.get(b);
@@ -535,16 +701,18 @@ async function snapshotDOM({ selector, name, maxNodes, captureKey, autoLayout })
 				return Array.from({ length: Math.min(100, times) }, () => group).flat();
 			});
 		}
-		function tracks(used, raw, available, gap, autoRows = false) {
+		function tracks(used, raw, available, gap, autoRows) {
 			const pixels = trackTokens(used).map((v) => /^[-\d.]+px$/.test(v) ? n(v) : NaN);
 			if (!pixels.length || pixels.length > 100 || pixels.some((v) => !Number.isFinite(v) || v <= 0)) return null;
-			const tokens = raw === "none" ? [] : expandTracks(raw, pixels.length);
+			const explicit = raw === "none" ? [] : expandTracks(raw, pixels.length);
+			const implicit = autoRows ? trackTokens(autoRows) : [];
+			const tokens = pixels.map((_, i) => explicit[i] ?? implicit[(i - explicit.length) % implicit.length]);
 			const weights = pixels.map((_, i) => n(tokens[i]?.match(/([\d.]+)fr\s*\)?$/)?.[1] || "0"));
 			const fixed = pixels.reduce((sum, value, i) => sum + (weights[i] ? 0 : value), 0);
 			const total = weights.reduce((a, b) => a + b, 0);
 			const flexible = available - gap * (pixels.length - 1) - fixed;
 			const exact = !total || weights.every((weight, i) => !weight || Math.abs(flexible * weight / total - pixels[i]) <= 1);
-			return { pixels, specs: pixels.map((value, i) => weights[i] && exact ? { type: "flex", value: weights[i] } : autoRows && (!tokens[i] || tokens[i] === "auto" || tokens[i] === "max-content") ? { type: "hug" } : { type: "fixed", value }) };
+			return { pixels, specs: pixels.map((value, i) => weights[i] && exact ? { type: "flex", value: weights[i] } : ["auto", "max-content"].includes(tokens[i]) && autoRows ? { type: "hug" } : { type: "fixed", value }) };
 		}
 		function lineIndex(value, count) { return /^-?\d+$/.test(value) ? Number(value) > 0 ? Number(value) - 1 : count + 1 + Number(value) : null; }
 		function areaMap(value) {
@@ -579,7 +747,8 @@ async function snapshotDOM({ selector, name, maxNodes, captureKey, autoLayout })
 			if (node.type !== "frame" || !info?.element) return;
 			const { element: el, style: c } = info;
 			const box = el.getBoundingClientRect(), p = padding(c);
-			const heightAuto = authored(el, "height", c.height) === "auto";
+			// A lifted layer no longer gets its size from the original CSS parent.
+			const heightAuto = !info.lifted && authored(el, "height", c.height) === "auto";
 			const texts = node.children.filter((child) => child.type === "text");
 			const hasRenderedChildren = [...el.children].some((child) => getComputedStyle(child).display !== "none");
 			if (!hasRenderedChildren && texts.length && !c.whiteSpace.startsWith("pre") && !/flex|grid/.test(c.display) && !c.display.startsWith("inline") && c.transform === "none") {
@@ -611,6 +780,8 @@ async function snapshotDOM({ selector, name, maxNodes, captureKey, autoLayout })
 				const childInfo = cssLayers.get(child);
 				return childInfo?.element && childInfo.style ? childInfo.element.parentElement === el && !["absolute", "fixed"].includes(childInfo.style.position) : child.type === "text";
 			});
+			const domOrder = new Map([...el.children].map((child, index) => [child, index]));
+			flow.sort((a, b) => (domOrder.get(cssLayers.get(a)?.element) ?? 0) - (domOrder.get(cssLayers.get(b)?.element) ?? 0));
 			const expected = [...el.children].filter((child) => !skip.has(child.tagName) && !["absolute", "fixed"].includes(getComputedStyle(child).position) && getComputedStyle(child).display !== "none");
 			if (!flow.length || expected.some((child) => !flow.some((item) => cssLayers.get(item)?.element === child))) return fallback(node, "поток изменён CSS stacking context или display:contents");
 			if (flow.filter((child) => child.type === "text").length > 1) return fallback(node, "анонимный текстовый блок с переносами сохранён по строкам");
@@ -634,22 +805,36 @@ async function snapshotDOM({ selector, name, maxNodes, captureKey, autoLayout })
 				node.gap = gapPx(horizontal ? c.columnGap : c.rowGap, horizontal ? innerW : innerH);
 				if (horizontal && c.flexWrap === "wrap") { node.wrap = true; node.rowGap = gapPx(c.rowGap, innerH); }
 				if (reversed && node.children.length === flow.length) node.reverseZIndex = true;
-				if (heightAuto) node.h = "hug";
+				if (heightAuto) {
+					const grow = n(c.flexGrow);
+					node.h = grow > 0 ? round(box.height) : "hug";
+				}
 				const grows = ordered.map((child) => n(cssLayers.get(child)?.style.flexGrow || "0")).filter(Boolean);
 				const equalGrow = grows.every((v) => Math.abs(v - grows[0]) < .001);
 				if (!equalGrow) warnings.add("Flex: неодинаковые flex-grow сохранены фиксированными размерами детей.");
 				const replacements = new Map();
 				for (const child of ordered) {
 					const childInfo = cssLayers.get(child), s = childInfo?.style;
+					const fixedWrap = child.layout === "horizontal" && child.wrap === true;
 					const outer = wrapMargin(child, margins(child));
+					if (fixedWrap && childInfo) {
+						const measuredWidth = round(childInfo.element.getBoundingClientRect().width);
+						outer.w = measuredWidth;
+						child.w = measuredWidth;
+					}
 					const main = horizontal ? "w" : "h", counter = horizontal ? "h" : "w";
-					if (s && n(s.flexGrow) > 0 && equalGrow && !(main === "h" && node.h === "hug")) { outer[main] = "fill"; if (outer !== child) child[main] = "fill"; }
+					if (s && n(s.flexGrow) > 0 && equalGrow && !(main === "h" && node.h === "hug")) {
+						// Keep the browser's measured track size. Multiple FILL
+						// children in Figma can expand beyond CSS flex tracks.
+						outer[main] = round(horizontal ? sizes[ordered.indexOf(child)].width : sizes[ordered.indexOf(child)].height);
+						if (outer !== child) child[main] = outer[main];
+					}
 					const self = s?.alignSelf && s.alignSelf !== "auto" ? s.alignSelf : c.alignItems;
 					// Replaced content keeps its intrinsic viewport/aspect ratio. A
 					// Figma FILL frame would stretch the box without scaling SVG paths.
 					const replaced = child.type === "icon" || child.type === "image";
 					if (["normal", "stretch"].includes(self) && counter === "h" && node.h === "hug" && childInfo) outer.h = childInfo.element.getBoundingClientRect().height;
-					if (!replaced && ["normal", "stretch"].includes(self) && (counter !== "h" || node.h !== "hug") && (!s || authored(childInfo.element, counter === "w" ? "width" : "height", "auto") === "auto")) { outer[counter] = "fill"; if (outer !== child) child[counter] = "fill"; }
+					if (!replaced && !fixedWrap && ["normal", "stretch"].includes(self) && (counter !== "h" || node.h !== "hug") && (!s || authored(childInfo.element, counter === "w" ? "width" : "height", "auto") === "auto")) { outer[counter] = "fill"; if (outer !== child) child[counter] = "fill"; }
 					delete outer.x; delete outer.y; replacements.set(child, outer);
 				}
 				absoluteChildren(node, flow);
@@ -659,7 +844,7 @@ async function snapshotDOM({ selector, name, maxNodes, captureKey, autoLayout })
 			}
 			const colGap = gapPx(c.columnGap, innerW), rowGap = gapPx(c.rowGap, innerH);
 			const cols = tracks(c.gridTemplateColumns, authored(el, "grid-template-columns", c.gridTemplateColumns), innerW, colGap);
-			const rows = tracks(c.gridTemplateRows, authored(el, "grid-template-rows", c.gridTemplateRows), innerH, rowGap, true);
+			const rows = tracks(c.gridTemplateRows, authored(el, "grid-template-rows", c.gridTemplateRows), innerH, rowGap, c.gridAutoRows);
 			if (!cols || !rows || !["normal", "stretch", "start", "flex-start"].includes(c.justifyContent) || !["normal", "stretch", "start", "flex-start"].includes(c.alignContent)) return fallback(node, "сложные треки/выравнивание Grid");
 			const areas = areaMap(c.gridTemplateAreas), cells = [], occupied = new Set();
 			for (const child of flow) {
@@ -679,6 +864,12 @@ async function snapshotDOM({ selector, name, maxNodes, captureKey, autoLayout })
 					const key = `${rr}:${cc}`; if (occupied.has(key)) return fallback(node, "перекрывающиеся Grid-ячейки"); occupied.add(key);
 				}
 				cells.push({ child, row, col, hAlign, vAlign, stretchW, stretchH });
+			}
+			// A Figma Hug track cannot stretch its children to the height measured in CSS.
+			for (const { row, stretchH } of cells) if (stretchH) {
+				for (let index = row.index; index < row.index + row.span; index++) {
+					if (rows.specs[index].type === "hug") rows.specs[index] = { type: "fixed", value: rows.pixels[index] };
+				}
 			}
 			node.layout = "grid"; node.padding = p; node.grid = { columns: cols.specs, rows: rows.specs, columnGap: colGap, rowGap };
 			if (heightAuto && rows.specs.every((track) => track.type === "hug")) node.h = "hug";
@@ -738,7 +929,9 @@ async function snapshotDOM({ selector, name, maxNodes, captureKey, autoLayout })
 		const bg = getComputedStyle(doc).backgroundColor;
 		const dx = round(rootBox.x + scrollX), dy = round(rootBox.y + scrollY);
 		const htmlFill = color(bg), bodyFill = spec.fill;
-		const plainBody = spec.layout === "none" && !spec.clip && (spec.opacity ?? 1) === 1 && !spec.shadow && !spec.stroke && !spec.rotation && !(spec.radius || []).some(Boolean) && getComputedStyle(root).transform === "none" && !createsStack(getComputedStyle(root));
+		const rootStyle = getComputedStyle(root);
+		const bodyWrapper = root.tagName === "BODY" && rootStyle.position === "static" && rootStyle.transform === "none" && rootStyle.opacity === "1" && !createsStack(rootStyle);
+		const plainBody = spec.layout === "none" && (!spec.clip || bodyWrapper) && (spec.opacity ?? 1) === 1 && !spec.shadow && !spec.stroke && !spec.rotation && !(spec.radius || []).some(Boolean) && rootStyle.transform === "none" && !createsStack(rootStyle);
 		let children;
 		let fill = htmlFill === "#00000000" ? "#FFFFFFFF" : htmlFill;
 		if (plainBody) {

@@ -181,11 +181,11 @@ function pageNameOf(node: BaseNode): string {
 	return n ? n.name : "";
 }
 
-// Синхронно: findAllWithCriteria работает и без загрузки всех страниц.
-export function loadComponents(): ComponentInfo[] {
+export async function loadComponents(): Promise<ComponentInfo[]> {
 	const out: ComponentInfo[] = [];
 	let found: (ComponentNode | ComponentSetNode)[] = [];
 	try {
+		await figma.loadAllPagesAsync();
 		found = figma.root.findAllWithCriteria({
 			types: ["COMPONENT", "COMPONENT_SET"],
 		});

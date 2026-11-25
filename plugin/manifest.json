@@ -1,7 +1,8 @@
 {
 	"name": "Vivi MCP",
-	"id": "vivi-figma-mcp-dev",
+	"id": "1704796268398999805",
 	"api": "1.0.0",
+	"documentAccess": "dynamic-page",
 	"main": "dist/code.js",
 	"ui": "dist/ui.html",
 	"editorType": [
@@ -11,6 +12,6 @@
 		"allowedDomains": [
 			"ws://localhost:8787"
 		],
-		"reasoning": "Подключение к локальному мосту Vivi: через него MCP-клиенты читают дизайн открытого файла"
+		"reasoning": "Connects to the Vivi bridge on this computer to import websites as editable layers and let a connected MCP client read or edit the open Figma file."
 	}
 }

@@ -3,15 +3,59 @@
 	<head><meta charset="utf-8" /><link rel="stylesheet" href="./ui.css" /></head>
 	<body>
 		<div id="ui-content">
-		<header class="status"><span id="dot" class="dot"></span><span id="state">Подключение к мосту…</span><span class="brand">Vivi MCP</span><button id="toggle-window" class="window-toggle" type="button" aria-label="Свернуть плагин" title="Свернуть плагин" aria-expanded="true" aria-controls="import-panel"><svg class="collapse-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 2L6 6M2 6H6V2M14 14L10 10M10 14V10H14" /></svg><svg class="expand-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6L2 2M2 6V2H6M10 10L14 14M10 14H14V10" /></svg></button></header>
+		<header class="status"><span class="status-pill"><span id="dot" class="dot"></span><span id="state">Подключение к мосту…</span></span><button id="toggle-window" class="window-toggle" type="button" aria-label="Свернуть плагин" title="Свернуть плагин" aria-expanded="true" aria-controls="import-panel"><svg class="collapse-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 2L6 6M2 6H6V2M14 14L10 10M10 14V10H14" /></svg><svg class="expand-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6L2 2M2 6V2H6M10 10L14 14M10 14H14V10" /></svg></button></header>
 		<main id="import-panel">
-			<h1>Сайт → дизайн</h1>
-			<p class="intro">Перенесите страницу целиком в редактируемые слои Figma.</p>
+			<div class="title-block"><h1>Сайт → дизайн</h1><p>Перенос страницы в редактируемые слои Figma</p></div>
 			<form id="import-form" novalidate>
-				<fieldset id="import-fields" class="import-card">
-					<label for="url">Адрес сайта</label>
-					<input id="url" type="url" placeholder="https://example.com" required autocomplete="url" spellcheck="false" />
-					<label id="preset-caption" for="preset-trigger">Размер экрана</label>
+				<fieldset id="import-fields" class="import-fields">
+					<section class="import-section" aria-labelledby="source-title">
+					<h2 id="source-title">Источник</h2>
+					<div id="source-modes" class="source-modes" role="radiogroup" aria-label="Источник">
+						<label><input type="radio" name="import-source" value="url" checked /><span>Ссылка</span></label>
+						<label><input type="radio" name="import-source" value="path" disabled /><span>Путь</span></label>
+						<label><input type="radio" name="import-source" value="file" disabled /><span>Файл</span></label>
+					</div>
+					<div id="source-url" class="source-panel">
+						<label for="url">Адрес страницы</label>
+						<input id="url" type="url" placeholder="https://example.com" required autocomplete="url" spellcheck="false" />
+					</div>
+					<div id="source-path" class="source-panel" hidden>
+						<label for="path">Путь к HTML-файлу</label>
+						<input id="path" type="text" placeholder="C:\site\index.html" required disabled spellcheck="false" />
+					</div>
+					<div id="source-file" class="source-panel" hidden>
+						<input id="html-file" type="file" accept=".html,.htm" hidden />
+						<input id="asset-folder" type="file" webkitdirectory hidden />
+						<div id="file-drop" class="file-drop" role="group" aria-label="HTML-файл или папка">
+							<div class="file-caption">
+								<span class="file-icon"><!-- lucide:cloud-upload --></span>
+								<div class="file-details" aria-live="polite">
+									<strong id="file-name">HTML-файл или папка</strong>
+									<span id="file-meta">Перетащите сюда</span>
+								</div>
+								<button id="clear-file" class="icon-button" type="button" aria-label="Убрать источник" title="Убрать источник" hidden><!-- lucide:x --></button>
+							</div>
+							<div class="file-actions">
+								<button id="pick-file" class="secondary-button" type="button"><!-- lucide:file-code -->Выбрать файл</button>
+								<button id="pick-folder" class="secondary-button" type="button"><!-- lucide:folder-open -->Выбрать папку</button>
+							</div>
+						</div>
+						<div id="entry-field" hidden>
+							<label for="entry">Страница</label>
+							<select id="entry"></select>
+						</div>
+					</div>
+					</section>
+					<section class="import-section" aria-label="Настройки импорта">
+					<div class="settings-grid">
+					<div>
+					<label id="preset-caption" for="preset-trigger">Готовый размер</label>
+					<div class="preset-pills" role="group" aria-label="Готовый размер">
+						<button class="preset-pill" type="button" data-preset="wide" aria-label="Ширина 1920 пикселей"><strong>1920</strong></button>
+						<button class="preset-pill active" type="button" data-preset="desktop" aria-label="Ширина 1440 пикселей"><strong>1440</strong></button>
+						<button class="preset-pill" type="button" data-preset="tablet" aria-label="Ширина 768 пикселей"><strong>768</strong></button>
+						<button class="preset-pill" type="button" data-preset="mobile" aria-label="Ширина 390 пикселей"><strong>390</strong></button>
+					</div>
 					<div id="preset-dropdown" class="dropdown">
 						<input id="preset" type="hidden" value="desktop" />
 						<button id="preset-trigger" class="dropdown-trigger" type="button" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="preset-list" aria-labelledby="preset-caption preset-label"><span id="preset-label">Десктоп</span><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3.5L5 6.5L8 3.5" /></svg></button>
@@ -22,11 +66,16 @@
 							<button id="preset-custom" type="button" role="option" data-value="custom" aria-selected="false" tabindex="-1"><span>Свой размер</span><span class="option-meta">Вручную</span></button>
 						</div>
 					</div>
-					<label for="width">Ширина экрана, px</label>
-					<input id="width" type="number" min="320" max="4096" step="1" value="1440" required />
-					<p class="field-hint">Вся страница — от первого экрана до последнего блока.</p>
+					</div>
+					<div>
+						<label for="width">Ширина экрана, px</label>
+						<input id="width" type="number" min="320" max="4096" step="1" value="1440" required />
+					</div>
+					</div>
 					<label class="check"><input id="mobile" type="checkbox" />Мобильный режим</label>
-					<details id="advanced">
+					<input id="scroll" type="checkbox" checked hidden />
+					</section>
+					<details id="advanced" class="import-section">
 						<summary>Дополнительные настройки<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3.5L5 6.5L8 3.5" /></svg></summary>
 						<div class="advanced-fields">
 							<label class="check"><input id="auto-layout" type="checkbox" checked />Создавать auto-layout для Flex и Grid</label>
@@ -36,11 +85,14 @@
 							<input id="wait-for" type="text" placeholder="Например, .content-loaded" spellcheck="false" />
 							<label for="wait-ms">Дополнительное ожидание, мс</label>
 							<input id="wait-ms" type="number" min="0" max="10000" step="100" value="500" required />
-							<label class="check"><input id="scroll" type="checkbox" checked />Прокрутить для загрузки контента</label>
+							<label id="external-resources-option" class="check" hidden><input id="external-resources" type="checkbox" checked />Загружать внешние ресурсы</label>
 						</div>
 					</details>
 				</fieldset>
-				<button id="import-button" class="primary-button" type="submit" disabled>Перенести в Figma</button>
+				<div class="import-actions">
+					<button id="import-button" class="primary-button" type="submit" disabled>Перенести в Figma</button>
+					<button id="stop-import" class="secondary-button" type="button" hidden><!-- lucide:square -->Остановить</button>
+				</div>
 			</form>
 			<p id="import-result" class="result" role="status" aria-live="polite" hidden></p>
 			<details id="warnings" class="warnings" hidden><summary>Замечания импорта</summary><ul id="warning-list"></ul></details>

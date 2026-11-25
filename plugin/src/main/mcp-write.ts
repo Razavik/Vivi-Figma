@@ -13,7 +13,7 @@ import { beginRun, isSnapshotTop, recordCreated, snapshotFor, undoLastRuns, undo
 
 export type WriteResult =
 	| { ok: true; data: unknown; images?: { data: string; mimeType: string }[] }
-	| { ok: false; error: string };
+	| { ok: false; error: string; cancelled?: boolean };
 
 const MAX_EDITS = 200;
 const MAX_ISSUES = 40;
@@ -146,6 +146,52 @@ async function freePlace(args: Record<string, unknown>): Promise<ReplacePlace | 
 	return args.direction === "below"
 		? { x: Math.round(Math.min(...boxes.map((b) => b.x))), y: Math.round(bottom + gap), parent: null, index: 0 }
 		: { x: Math.round(right + gap), y: Math.round(top), parent: null, index: 0 };
+}
+
+export async function runManualCreate(args: Record<string, unknown>, control: { cancelled: boolean }): Promise<WriteResult> {
+	const spec = args.spec as AnySpec | undefined;
+	if (spec?.type !== "frame") return { ok: false, error: "spec: корневой узел должен быть frame" };
+	const page = figma.currentPage;
+	const assertActive = () => {
+		if (control.cancelled) throw new Error("Импорт остановлен");
+		if (page.id !== figma.currentPage.id) throw new Error("Страница Figma сменилась во время импорта.");
+	};
+	let nodes = 0;
+	let draft: SceneNode | undefined;
+	try {
+		assertActive();
+		resetState();
+		await loadDesignSystem();
+		const place = await freePlace({});
+		assertActive();
+		await beginWrite(`create: ${String(spec.name ?? "frame")}`);
+		const root = await buildRoot(spec, place, {
+			async checkpoint() {
+				// Yield a task so the sandbox can receive a stop message between batches.
+				if (nodes++ % 24 === 0) await new Promise((resolve) => setTimeout(resolve, 0));
+				assertActive();
+			},
+			onCreated(node) {
+				draft = node;
+				node.visible = false;
+			},
+		});
+		await flushStyleBindings();
+		assertActive();
+		root.visible = true;
+		recordCreated(root.id);
+		state.lastBuiltRootId = root.id;
+		try {
+			page.selection = [root];
+			figma.viewport.scrollAndZoomIntoView([root]);
+		} catch {
+			state.warnings.push("Макет создан, но не удалось показать его на холсте.");
+		}
+		return { ok: true, data: { rootId: root.id, count: state.nodeCount, warnings: diag.take().warnings } };
+	} catch (err) {
+		if (draft && !draft.removed) draft.remove();
+		return { ok: false, error: String((err as Error)?.message || err), cancelled: control.cancelled };
+	}
 }
 
 // figma_create: корень спеки — frame. parent — положить в контейнер, replace — заменить ноду.

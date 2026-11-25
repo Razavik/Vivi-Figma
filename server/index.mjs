@@ -78,12 +78,14 @@ function servePlugin(socket) {
 		}
 		relay.touch(plugin);
 		if (msg?.type === "mcp_result" && !importer.result(msg)) relay.result(msg);
-		if (msg?.type === "html_import" && typeof msg.reqId === "string" && msg.reqId.length <= 100) void importer.start(msg.reqId, msg.args);
+		if (typeof msg?.reqId !== "string" || msg.reqId.length > 100) return;
+		if (msg.type === "html_import") void importer.start(msg.reqId, msg.args, msg.cancellable === true);
+		if (msg.type === "html_import_cancel") importer.cancel(msg.reqId);
 	});
 	const remove = () => { relay.remove(plugin); importer.dispose(); };
 	socket.on("close", remove);
 	socket.on("error", remove);
-	socket.send(JSON.stringify({ type: "ready", htmlImport: true }));
+	socket.send(JSON.stringify({ type: "ready", htmlImport: true, htmlFileImport: true, htmlImportCancel: true, htmlImportExternalResources: true }));
 }
 
 // Без клиентов (ни агента, ни плагина) мост сам завершается: MCP-сервер

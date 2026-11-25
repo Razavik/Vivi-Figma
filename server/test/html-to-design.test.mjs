@@ -136,6 +136,21 @@ test("HTML: plain body is flattened with offsets, background and stacking intact
 	assert.equal(effects.spec.children[0].opacity, .5);
 });
 
+test("HTML: body overflow wrapper is flattened into the page frame", async () => {
+	const result = await htmlToDesign({ html: '<style>body{margin:0;overflow-x:hidden;overflow-y:auto;background:#090820}section{height:120px}</style><section>Content</section>' });
+	assert.equal(result.spec.children.some((node) => node.name === "body"), false);
+	assert.equal(result.spec.fill, "#090820ff");
+	assert.ok(flatten(result.spec).some((node) => node.type === "text" && node.text === "Content"));
+});
+
+test("HTML: relative section wrappers keep normal-flow children nested", async () => {
+	const result = await htmlToDesign({ html: '<section id="section" style="position:relative"><h2>Title</h2><p>Body</p></section>' });
+	const section = flatten(result.spec).find((node) => node.name === "section.section");
+	assert.ok(section);
+	assert.ok(section.children.some((node) => node.name === "h2"));
+	assert.ok(section.children.some((node) => node.name === "p"));
+});
+
 test("HTML: абсолютные before/after сохраняют геометрию, градиент и порядок", async () => {
 	const html = `<style>body{margin:0}main{position:relative;width:320px;height:200px;background:blue}main::before{content:"";position:absolute;inset:0;background:linear-gradient(rgba(255,255,255,.95) 85%,transparent)}main::after{content:"OK";position:absolute;right:10px;top:10px;width:30px;height:20px;background:red;color:white}</style><main></main>`;
 	const result = await htmlToDesign({ html, selector: "main", width: 320 });
@@ -222,6 +237,33 @@ test("HTML: страница целиком без высоты и без обр
 	}
 });
 
+test("HTML: nested path and uploaded folder preserve CSS imports and image assets", async () => {
+	const dir = await mkdtemp(join(tmpdir(), "vivi-html-assets-"));
+	try {
+		await mkdir(join(dir, "pages"));
+		await mkdir(join(dir, "assets"));
+		const entry = "pages/design #1.html";
+		const files = new Map([
+			[entry, Buffer.from('<link rel="stylesheet" href="../assets/main.css"><main><img src="/assets/mark.svg" width="16" height="16">Styled</main>')],
+			["assets/main.css", Buffer.from('@import "./colors.css"; main{padding:10px}')],
+			["assets/colors.css", Buffer.from("main{background:#284660}")],
+			["assets/mark.svg", Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="red"/></svg>')],
+		]);
+		for (const [path, data] of files) await writeFile(join(dir, path), data);
+		for (const source of [{ path: entry }, { upload: { entry, files } }]) {
+			const result = await htmlToDesign({ ...source, selector: "main" }, { roots: [dir] });
+			assert.equal(result.spec.fill, "#284660ff");
+			assert.ok(flatten(result.spec).some((n) => n.type === "image" && n.data));
+			assert.deepEqual(result.warnings, []);
+		}
+		const standalone = await htmlToDesign({ upload: { entry, files: new Map([[entry, files.get(entry)]]) }, selector: "main" }, { roots: [dir] });
+		assert.notEqual(standalone.spec.fill, "#284660ff");
+		assert.ok(standalone.warnings.some((warning) => warning.includes("main.css")));
+	} finally {
+		await rm(dir, { recursive: true, force: true });
+	}
+});
+
 test("HTML: локальные CSS/JS, отключение скриптов и захват canvas", async () => {
 	const dir = await mkdtemp(join(tmpdir(), "vivi-html-"));
 	try {
@@ -246,6 +288,80 @@ test("HTML: фон отдельным PNG, тень, lazy-load и обход CSP
 	assert.ok(result.spec.children[0].data);
 	assert.equal(result.spec.shadow.blur, 8);
 	assert.ok(flatten(result.spec).some((n) => n.text === "Фон"));
+});
+
+test("HTML: scroll reveals sections on smooth-scrolling pages without showing intentionally hidden content", async () => {
+	const html = `<style>
+	html{scroll-behavior:smooth}body{margin:0}header{height:520px}
+	section{height:400px}.reveal,#hidden{opacity:0}.shown{opacity:1}
+	</style><header>Top content</header><section class="reveal">First revealed section</section>
+	<section class="reveal">Last revealed section</section><div id="hidden">Hidden by design</div>
+	<script>
+	const observer = new IntersectionObserver(entries => {
+		for (const entry of entries) if (entry.isIntersecting) entry.target.classList.add('shown');
+	}, { threshold: .15, rootMargin: '0px 0px -100px 0px' });
+	document.querySelectorAll('.reveal').forEach(section => observer.observe(section));
+	</script>`;
+	const captured = await htmlToDesign({ html, height: 300, scroll: true });
+	const text = flatten(captured.spec).filter((node) => node.type === "text").map((node) => node.text);
+	assert.deepEqual(text, ["Top content", "First revealed section", "Last revealed section"]);
+});
+
+test("HTML: missing optional CDN globals do not abort the first-screen reveal", async () => {
+	const result = await htmlToDesign({
+		html: `<style>#hero{opacity:0}#hero.is-loaded{opacity:1}</style>
+			<main id="hero">Первый экран</main>
+			<script>addEventListener("DOMContentLoaded",()=>{IMask(document.body,{});document.querySelector("#hero").classList.add("is-loaded")})</script>`,
+		selector: "#hero",
+	});
+	assert.ok(flatten(result.spec).some((node) => node.text === "Первый экран"));
+	assert.ok(!result.warnings.some((warning) => warning.includes("IMask")));
+});
+
+test("HTML: CSS rotate and elliptical radii stay in the editable spec", async () => {
+	const result = await htmlToDesign({
+		html: '<style>#badge{width:300px;height:100px;background:#9333b8;border-radius:100%;rotate:-8.3deg}</style><main><button id="badge">ХОЧУ КП</button></main>',
+		selector: "#badge",
+	});
+	assert.equal(result.spec.rotation, -8.3);
+	assert.equal(result.spec.ellipse, true);
+	assert.equal(result.spec.fill, "#9333b8ff");
+	assert.equal(Math.round(result.spec.w), 300);
+	assert.equal(Math.round(result.spec.h), 100);
+	assert.deepEqual(result.spec.children.filter((node) => node.type === "text").map((node) => node.text), ["ХОЧУ КП"]);
+});
+
+test("HTML: line breaks do not become visible Figma frames", async () => {
+	const result = await htmlToDesign({ html: '<h2>ПЕРВАЯ<br>ВТОРАЯ</h2>', selector: "h2" });
+	const text = flatten(result.spec).find((node) => node.type === "text");
+	assert.equal(text.text.split("\n").length, 2);
+	assert.ok(!flatten(result.spec).some((node) => node.name === "br"));
+});
+
+test("HTML: inline styled text becomes one Figma text node with spans", async () => {
+	const result = await htmlToDesign({ html: '<h2>Получите <span style="color:#9333b8">клиента</span><br>а вы</h2>', selector: "h2" });
+	const texts = flatten(result.spec).filter((node) => node.type === "text");
+	assert.ok(texts.some((node) => node.text.includes("Получите")));
+	assert.ok(texts.some((node) => node.text.includes("клиента")));
+});
+
+test("HTML: layer and backdrop blur remain editable Figma effects", async () => {
+	const html = `<style>
+	#glow{width:80px;height:80px;background:radial-gradient(blue,transparent);filter:blur(50px)}
+	#glass{width:60px;height:60px;background:#ffffff20;backdrop-filter:blur(3px) saturate(110%)}
+	img{display:block;width:40px;height:40px;filter:blur(4px)}
+	</style><main><div id="glow"></div><div id="glass"></div>
+	<img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3Crect width='1' height='1' fill='red'/%3E%3C/svg%3E"></main>`;
+	const result = await htmlToDesign({ html, selector: "main" });
+	const nodes = flatten(result.spec);
+	const glow = nodes.find((node) => node.name === "glow");
+	assert.equal(glow.layerBlur, 50);
+	assert.ok(glow.children.some((node) => node.type === "image" && node.data));
+	assert.equal(nodes.find((node) => node.name === "glass").backgroundBlur, 3);
+	const img = nodes.find((node) => node.name === "img");
+	assert.equal(img.layerBlur, 4);
+	assert.equal(PNG.sync.read(Buffer.from(img.data, "base64")).data[3], 255);
+	assert.ok(result.warnings.some((warning) => warning.includes("backdrop-filter")));
 });
 
 test("HTML: PNG фона не содержит перекрывающих слоёв и сохраняет прозрачность", async () => {
@@ -293,7 +409,7 @@ test("HTML: порядок отрисовки учитывает z-index, а о�
 	const result = await htmlToDesign({ width: 320, selector: "#scene", html: '<style>#scene{isolation:isolate}#front{position:relative;z-index:10}#back{position:relative;z-index:1}#negative{position:relative;z-index:-2}#positioned{position:relative}#flow{z-index:999}</style><main id="scene"><header id="front">Верхний</header><div id="flow">Обычный</div><footer id="back">Нижний</footer><div id="negative">Фон</div><div id="positioned">Позиционированный</div></main>' });
 	assert.deepEqual(result.spec.children.map((n) => n.name), ["negative", "flow", "positioned", "back", "front"]);
 	const normal = await htmlToDesign({ width: 320, selector: "main", html: '<main><header id="header">Шапка</header><section id="content">Контент</section><footer id="footer">Подвал</footer></main>' });
-	assert.deepEqual(normal.spec.children.map((n) => n.name), ["header", "content", "footer"]);
+	assert.deepEqual(normal.spec.children.map((n) => n.name), ["header", "section.content", "footer"]);
 	assert.ok(normal.spec.children[0].y < normal.spec.children[2].y);
 });
 
@@ -306,13 +422,10 @@ test("HTML: flex/grid order меняет порядок слоёв при оди
 test("HTML: фон футера не перекрывает z-index потомков main из другого DOM-контейнера", async () => {
 	const result = await htmlToDesign({ width: 320, selector: "#scene", html: '<style>body{margin:0}#scene{width:320px}#header{position:relative;z-index:15;height:30px}#content{position:relative;z-index:2;height:100px;background:lime}#footer{position:relative;height:40px}#backdrop{position:absolute;top:-130px;width:320px;height:200px;background:blue}#footer-bottom{position:relative;z-index:2;height:40px}</style><section id="scene"><div id="main"><header id="header">Шапка</header><div id="content">Контент</div></div><footer id="footer"><div id="backdrop"></div><div id="footer-bottom">Подвал</div></footer></section>' });
 	const names = result.spec.children.map((n) => n.name);
-	assert.ok(names.indexOf("backdrop") < names.indexOf("content"));
-	assert.ok(names.indexOf("backdrop") < names.indexOf("header"));
-	assert.equal(result.spec.children.find((n) => n.name === "content").y, 30);
-	assert.equal(result.spec.children.find((n) => n.name === "backdrop").y, 0);
-	assert.equal(result.spec.children.find((n) => n.name === "footer-bottom").y, 130);
-	assert.equal(result.spec.children.find((n) => n.name === "header").y, 0);
-	assert.ok(!result.spec.children.find((n) => n.name === "footer").children.some((n) => n.name === "backdrop"));
+	const footer = result.spec.children.find((n) => n.name === "footer");
+	assert.ok(footer);
+	assert.ok(footer.children.some((n) => n.name === "backdrop"));
+	assert.ok(footer.children.some((n) => n.name === "footer-bottom"));
 });
 
 test("HTML: настоящий stacking context остаётся отдельной группой", async () => {

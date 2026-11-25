@@ -21,6 +21,13 @@ import { BOOL_OPS, shapeSize, shapeSvg, type BoolOp } from "./shapes-core";
 
 const loadedFonts = new Set<string>();
 
+// Figma отклоняет fontSize меньше 1. CSS при масштабировании или скрытии
+// элементов может дать ноль либо очень маленькое дробное значение.
+export function figmaFontSize(value: unknown): number | undefined {
+	if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+	return Math.max(1, value);
+}
+
 // base64 → байты (atob в песочнице плагина нет).
 const B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 export function decodeBase64(b64: string): Uint8Array {
@@ -271,7 +278,8 @@ export async function applySpans(t: TextNode, spans: unknown): Promise<void> {
 						STYLE_BY_WEIGHT[String(s.fontWeight)] || base.style,
 					),
 				);
-			if (typeof s.fontSize === "number") t.setRangeFontSize(at, end, s.fontSize);
+			const spanFontSize = figmaFontSize(s.fontSize);
+			if (spanFontSize !== undefined) t.setRangeFontSize(at, end, spanFontSize);
 			if (typeof s.color === "string") {
 				const { color, alpha } = hexToRgba(s.color);
 				t.setRangeFills(at, end, [{ type: "SOLID", color, opacity: alpha }]);
@@ -309,6 +317,26 @@ async function sameStyle(family: string, style: string): Promise<string | null> 
 	return own.find((st) => names.includes(norm(st))) || null;
 }
 
+function nearestStyle(family: string, style: string): string | null {
+	fontList ||= [];
+	const norm = (x: string) => x.toLowerCase().replace(/[\s_-]/g, "");
+	const rank = (value: string) => {
+		const key = norm(value);
+		if (key.includes("black") || key.includes("heavy")) return 900;
+		if (key.includes("extrabold") || key.includes("ultrabold")) return 800;
+		if (key.includes("bold")) return 700;
+		if (key.includes("semibold") || key.includes("demibold")) return 600;
+		if (key.includes("medium")) return 500;
+		if (key.includes("light")) return 300;
+		if (key.includes("thin")) return 100;
+		return 400;
+	};
+	const target = rank(style);
+	return fontList.filter((font) => font.fontName.family === family)
+		.map((font) => font.fontName.style)
+		.sort((a, b) => Math.abs(rank(a) - target) - Math.abs(rank(b) - target))[0] || null;
+}
+
 export async function ensureFont(
 	family: string,
 	style: string,
@@ -326,6 +354,18 @@ export async function ensureFont(
 					loadedFonts.add(key);
 					fontAlias.set(key, alt);
 					return { family, style: alt };
+				} catch {
+					/* дальше — запасной шрифт */
+				}
+			}
+			const nearest = nearestStyle(family, style);
+			if (nearest && nearest !== style) {
+				try {
+					await figma.loadFontAsync({ family, style: nearest });
+					loadedFonts.add(key);
+					fontAlias.set(key, nearest);
+					state.warnings.push("шрифт " + family + " " + style + " недоступен — использовано ближайшее начертание " + nearest);
+					return { family, style: nearest };
 				} catch {
 					/* дальше — запасной шрифт */
 				}
@@ -418,13 +458,19 @@ export async function buildNode(
 	spec: AnySpec,
 	parent: Container,
 	inAuto: boolean,
+	checkpoint?: () => Promise<void>,
+	onCreated?: (root: SceneNode) => void,
 ): Promise<SceneNode | null> {
-	const node = await buildBare(spec, parent, inAuto);
+	await checkpoint?.();
+	const node = await buildBare(spec, parent, inAuto, checkpoint, onCreated);
 	if (node && spec && typeof spec === "object") {
 		// Installing STRETCH while an auto-layout parent still has a temporary
 		// width makes Figma stretch the asset during the final parent resize.
 		// Keep the captured geometry until the whole tree has settled.
-		applyLook(node, spec.constraints ? { ...spec, constraints: undefined } : spec);
+		const look = spec.ellipse === true
+			? { ...spec, fill: "none", stroke: "none", radius: undefined, constraints: undefined }
+			: spec.constraints ? { ...spec, constraints: undefined } : spec;
+		applyLook(node, look);
 		if (spec.constraints && "constraints" in node) {
 			let pending = state.anchors.find((item) => item.node === node);
 			if (!pending) { pending = { node }; state.anchors.push(pending); }
@@ -449,6 +495,8 @@ async function buildBare(
 	spec: AnySpec,
 	parent: Container,
 	inAuto: boolean,
+	checkpoint?: () => Promise<void>,
+	onCreated?: (root: SceneNode) => void,
 ): Promise<SceneNode | null> {
 	if (!spec || typeof spec !== "object") return null;
 
@@ -460,6 +508,7 @@ async function buildBare(
 				spec.component === true
 					? figma.createComponent()
 					: figma.createFrame();
+			onCreated?.(frame);
 			frame.name = typeof spec.name === "string" ? spec.name : "Frame";
 			parent.appendChild(frame);
 			// Компоненты регистрируем по имени сразу — инстансы в этой же
@@ -468,6 +517,18 @@ async function buildBare(
 				state.namedComponents.set(spec.name, frame as ComponentNode);
 			frame.clipsContent = spec.clip === true;
 			if (typeof spec.w === "number" && typeof spec.h === "number") frame.resizeWithoutConstraints(Math.max(.01, spec.w), Math.max(.01, spec.h));
+			if (spec.ellipse === true) {
+				await buildNode({
+					type: "ellipse",
+					name: "Ellipse background",
+					w: typeof spec.w === "number" ? spec.w : frame.width,
+					h: typeof spec.h === "number" ? spec.h : frame.height,
+					fill: spec.fill,
+					stroke: spec.stroke,
+					strokeWidth: spec.strokeWidth,
+					position: "absolute",
+				}, frame, false, checkpoint);
+			}
 
 			if (spec.layout === "vertical" || spec.layout === "horizontal") {
 				frame.layoutMode =
@@ -505,13 +566,10 @@ async function buildBare(
 				if (typeof spec.reverseZIndex === "boolean") frame.itemReverseZIndex = spec.reverseZIndex;
 			}
 
-			applyFill(
-				frame,
-				spec.fill !== undefined ? (spec.fill as Fill) : "none",
-			);
+			applyFill(frame, spec.ellipse === true ? "none" : spec.fill !== undefined ? (spec.fill as Fill) : "none");
 			applyStroke(
 				frame,
-				spec as { stroke?: string; strokeWidth?: number },
+				spec.ellipse === true ? {} : spec as { stroke?: string; strokeWidth?: number },
 			);
 			applyRadius(frame, spec.radius as number | number[] | undefined);
 			applyShadow(
@@ -540,7 +598,7 @@ async function buildBare(
 						/^components$/i.test(String(c.name || "")));
 				for (const child of children) {
 					if (!isComponents(child)) continue;
-					const node = await buildNode(child, frame, childInAuto);
+					const node = await buildNode(child, frame, childInAuto, checkpoint);
 					if (node) state.prebuilt.set(child, node);
 				}
 				for (const child of children) {
@@ -550,7 +608,7 @@ async function buildBare(
 						builtChildren.push({ node: done, spec: child });
 						continue;
 					}
-					const built = await buildNode(child, frame, childInAuto);
+					const built = await buildNode(child, frame, childInAuto, checkpoint);
 					if (built) builtChildren.push({ node: built, spec: child });
 				}
 			}
@@ -589,8 +647,8 @@ async function buildBare(
 			text.characters =
 				spansText(spec.spans) ??
 				(typeof spec.text === "string" ? spec.text : String(spec.text ?? ""));
-			if (typeof spec.fontSize === "number" && !tStyle)
-				text.fontSize = spec.fontSize;
+			const fontSize = figmaFontSize(spec.fontSize);
+			if (fontSize !== undefined && !tStyle) text.fontSize = fontSize;
 			if (typeof spec.color === "string") {
 				const { color, alpha } = hexToRgba(spec.color);
 				text.fills = [{ type: "SOLID", color, opacity: alpha }];
@@ -621,6 +679,12 @@ async function buildBare(
 					text.resize(spec.w, text.height);
 				} else {
 					text.textAutoResize = "WIDTH_AND_HEIGHT";
+				}
+				if (typeof spec.w === "number" && typeof spec.h === "number" && spec.noWrap !== true) {
+					// The browser box is authoritative for captured layouts. Keep
+					// Figma's font metric differences from changing neighboring gaps.
+					text.textAutoResize = "NONE";
+					text.resize(spec.w, spec.h);
 				}
 				if (!flow) {
 					if (typeof spec.x === "number") text.x = spec.x;
@@ -1040,6 +1104,7 @@ export interface ReplacePlace {
 export async function buildRoot(
 	spec: AnySpec,
 	place?: ReplacePlace | null,
+	importBuild?: { checkpoint: () => Promise<void>; onCreated: (root: SceneNode) => void },
 ): Promise<SceneNode> {
 	if (spec.type !== "frame") {
 		throw new Error("корневой узел спеки должен быть frame");
@@ -1048,8 +1113,11 @@ export async function buildRoot(
 		spec,
 		figma.currentPage as unknown as Container,
 		false,
+		importBuild?.checkpoint,
+		importBuild?.onCreated,
 	);
 	if (!root) throw new Error("не удалось построить корневой фрейм");
+	await importBuild?.checkpoint();
 	placeAnchored();
 	// При замене возвращаем новую ноду в родителя старой на тот же
 	// индекс — если родитель auto-layout, позицию даст лейаут;
@@ -1075,8 +1143,10 @@ export async function buildRoot(
 		root.x = place ? place.x : Math.round(center.x - root.width / 2);
 		root.y = place ? place.y : Math.round(center.y - root.height / 2);
 	}
-	state.lastBuiltRootId = root.id;
-	figma.currentPage.selection = [root];
-	figma.viewport.scrollAndZoomIntoView([root]);
+	if (!importBuild) {
+		state.lastBuiltRootId = root.id;
+		figma.currentPage.selection = [root];
+		figma.viewport.scrollAndZoomIntoView([root]);
+	}
 	return root;
 }

@@ -6,7 +6,7 @@ const BASE = ["type", "id", "name", "x", "y", "w", "h", "opacity", "position", "
 const VISUAL = ["fill", "stroke", "strokeWidth", "strokeSides", "strokeAlign", "dash", "radius", "shadow", "overlay"];
 
 const FIELDS = {
-	frame: [...BASE, ...VISUAL, "layout", "gap", "rowGap", "padding", "align", "cross", "wrap", "clip", "minW", "maxW", "component", "children", "variants", "grid", "reverseZIndex"],
+	frame: [...BASE, ...VISUAL, "layout", "gap", "rowGap", "padding", "align", "cross", "wrap", "clip", "ellipse", "minW", "maxW", "component", "children", "variants", "grid", "reverseZIndex"],
 	text: [...BASE, ...VISUAL, "text", "spans", "fontSize", "fontWeight", "fontFamily", "textStyle", "color", "align", "lineHeight", "letterSpacing", "textCase", "textDecoration", "maxLines", "minW", "maxW", "noWrap"],
 	rect: [...BASE, ...VISUAL],
 	ellipse: [...BASE, ...VISUAL],

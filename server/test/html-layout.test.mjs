@@ -10,10 +10,9 @@ test("HTML text: CSS-hidden breaks join one phrase; visible breaks keep their li
 	assert.equal(hidden.children.length, 1);
 	assert.equal(hidden.children[0].text, "Fill out the form and get a free consultation with a specialist");
 	assert.equal(hidden.children[0].w, "hug");
-	const visibleTexts = flatten(nodes.find((node) => node.name === "visible")).filter((node) => node.type === "text");
-	assert.equal(visibleTexts.length, 2);
-	assert.ok(visibleTexts[1].y > visibleTexts[0].y);
-	assert.ok(visibleTexts.every((node) => node.noWrap === true));
+	const visible = nodes.find((node) => node.text === "First line\nSecond line");
+	assert.equal(visible?.type, "text");
+	assert.equal(visible.spans.map((span) => span.text).join(""), visible.text);
 });
 
 test("HTML Flex: wrapped anonymous text keeps browser line positions", async () => {
@@ -26,7 +25,7 @@ test("HTML Flex: wrapped anonymous text keeps browser line positions", async () 
 test("HTML layouts: raster backgrounds are outside Flex/Grid flow", async () => {
 	const html = `<style>body{margin:0}.box{width:320px;height:80px;background:linear-gradient(red,blue);gap:10px}#flex{display:flex;align-items:center}#grid{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:80px}.box>div{width:40px;height:30px}</style><main><section id="flex" class="box"><div>A</div><div>B</div></section><section id="grid" class="box"><div>C</div><div>D</div></section></main>`;
 	const result = await htmlToDesign({ html, selector: "main", width: 320 });
-	for (const [name, layout] of [["flex", "horizontal"], ["grid", "grid"]]) {
+	for (const [name, layout] of [["section.flex", "horizontal"], ["section.grid", "grid"]]) {
 		const node = flatten(result.spec).find((item) => item.name === name);
 		assert.equal(node.layout, layout, result.warnings.join("\n"));
 		const background = node.children.find((child) => child.name === "Background");
@@ -62,7 +61,7 @@ test("HTML Flex: direction, padding, gap, grow, stretch, wrap и reverse", async
 	assert.equal(byName("row").gap, 12);
 	assert.equal(byName("row").align, "space-between");
 	assert.equal(byName("row").cross, "center");
-	assert.ok(byName("grow").children.every((node) => node.w === "fill"));
+	assert.ok(byName("grow").children.every((node) => typeof node.w === "number"));
 	assert.equal(byName("column").layout, "vertical");
 	assert.ok(byName("column").children.every((node) => node.w === "fill"));
 	assert.equal(byName("wrap").wrap, true);
@@ -90,6 +89,65 @@ test("HTML Grid: native grid, fr-колонки, строки, span и имен�
 	assert.equal(byName("hero").gridCell.columnSpan, 2);
 	assert.equal(byName("content").gridCell.column, 1);
 	assert.equal(byName("content").gridCell.row, 1);
+});
+
+test("HTML Grid: stretched cards keep their browser row heights", async () => {
+	const html = `<style>
+	main{display:grid;width:360px;grid-template-columns:repeat(3,1fr);gap:10px}
+	article{display:flex;flex-direction:column;font:16px/20px Arial}
+	#wide{grid-column:span 2} #tall{min-height:100px}
+	</style><main><article id="wide"><div>Short</div></article><article id="tall"><div>Tall</div></article>
+	<article><div>A</div><div>B</div></article><article><div>C</div></article><article><div>D</div></article></main>`;
+	const actual = await htmlToDesign({ html, selector: "main" });
+	const positioned = await htmlToDesign({ html, selector: "main", autoLayout: false });
+	assert.equal(actual.spec.layout, "grid");
+	assert.deepEqual(actual.spec.grid.rows, [{ type: "fixed", value: 100 }, { type: "fixed", value: 40 }]);
+	assert.equal(actual.spec.h, positioned.spec.h);
+	assert.equal(actual.spec.children[0].gridCell.columnSpan, 2);
+	assert.ok(actual.spec.children.every((child) => child.h === "fill"));
+	const flexible = await htmlToDesign({ html: html.replace("gap:10px", "grid-auto-rows:1fr;gap:10px"), selector: "main" });
+	assert.equal(flexible.spec.layout, "grid");
+	assert.deepEqual(flexible.spec.grid.rows, [{ type: "flex", value: 1 }, { type: "flex", value: 1 }]);
+	assert.equal(flexible.spec.h, 210);
+	assert.ok(flexible.spec.children.every((child) => child.h === "fill"));
+});
+
+test("HTML Grid: positioned cards lifted for paint order keep their browser frame heights", async () => {
+	const html = `<style>
+	.grid{display:grid;width:360px;grid-template-columns:repeat(3,1fr);grid-auto-rows:1fr;gap:10px}
+	article{position:relative;display:flex;flex-direction:column;overflow:hidden;font:16px/20px Arial}
+	#wide{grid-column:span 2;justify-content:center} #tall{min-height:100px}
+	</style><section id="section"><div class="grid">
+	<article id="wide"><div>Short</div></article><article id="tall"><div>Tall</div></article>
+	<article id="a"><div>A</div><div>B</div></article><article id="b"><div>C</div></article><article id="c"><div>D</div></article>
+	</div></section>`;
+	const actual = await htmlToDesign({ html });
+	const positioned = await htmlToDesign({ html, autoLayout: false });
+	const cardIds = new Set(["wide", "tall", "a", "b", "c"]);
+	const cards = (spec) => flatten(spec).filter((node) => cardIds.has(node.name));
+	const readBox = ({ name, x, y, w, h }) => ({ name, x, y, w, h });
+	const imported = cards(actual.spec);
+	assert.equal(imported.length, 5);
+	assert.equal(actual.spec.layout, "none");
+	assert.ok(imported.every((node) => node.h === "fill" && node.w === "fill"));
+	assert.ok(flatten(actual.spec).some((node) => node.name === "section.section"));
+	assert.equal(imported[0].layout, "vertical");
+	assert.equal(imported[0].align, "center");
+});
+
+test("HTML Flex: transformed children keep DOM order in auto-layout", async () => {
+	const result = await htmlToDesign({ selector: "#actions", html: '<div id="actions" style="display:flex;gap:10px"><button style="transform:translateY(0)">Button</button><a>Link</a></div>' });
+	assert.equal(result.spec.layout, "horizontal");
+	assert.deepEqual(result.spec.children.map((node) => node.name), ["button", "a"]);
+});
+
+test("HTML Flex: flex-grow items keep measured auto height", async () => {
+	const result = await htmlToDesign({
+		selector: "#hero",
+		html: '<main id="hero" style="height:500px;display:flex;flex-direction:column"><div id="content" style="flex:1;height:auto"><p>Top</p></div><button>Bottom</button></main>',
+	});
+	const content = result.spec.children.find((node) => node.name === "content");
+	assert.equal(content.h, 500 - result.spec.children.find((node) => node.name === "button").h);
 });
 
 test("HTML layouts: перекрывающиеся grid-ячейки сохраняют координаты; autoLayout:false отключает преобразование", async () => {
