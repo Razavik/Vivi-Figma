@@ -10,6 +10,7 @@ import { WebSocketServer } from "ws";
 import { MAX_PAYLOAD } from "./limits.mjs";
 import { createRelay } from "./mcp-relay.mjs";
 import { createManualImporter } from "./manual-import.mjs";
+import { BRIDGE_PROTOCOL, bridgeRole, createBridgeToken } from "./bridge-auth.mjs";
 
 // server/.env (KEY=VALUE): PORT и др. Уже заданные env не трогаем.
 const serverDir = dirname(fileURLToPath(import.meta.url));
@@ -29,13 +30,23 @@ const relay = createRelay();
 const httpServer = createServer((req, res) => {
 	if (req.method === "GET" && req.url === "/health") {
 		res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-		res.end(JSON.stringify({ service: "vivi-figma-bridge", version: VERSION, pid: process.pid }));
+		res.end(JSON.stringify({ service: "vivi-figma-bridge", protocol: BRIDGE_PROTOCOL, version: VERSION, pid: process.pid }));
 		return;
 	}
 	res.writeHead(426, { "content-type": "text/plain; charset=utf-8" });
 	res.end("Vivi MCP bridge: используйте WebSocket\n");
 });
-const wss = new WebSocketServer({ server: httpServer, maxPayload: MAX_PAYLOAD });
+const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_PAYLOAD, handleProtocols: () => BRIDGE_PROTOCOL });
+let bridgeToken;
+httpServer.on("upgrade", (request, socket, head) => {
+	let role;
+	try { role = bridgeRole(request, httpServer.address().port, bridgeToken); } catch { /* malformed request */ }
+	if (!role) {
+		socket.end("HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
+		return;
+	}
+	wss.handleUpgrade(request, socket, head, (client) => wss.emit("connection", client, role));
+});
 
 // MCP-клиент: пересылаем его вызовы в плагин.
 /** @param {import("ws").WebSocket} socket */
@@ -104,10 +115,9 @@ function checkIdle() {
 	idleTimer.unref?.();
 }
 
-wss.on("connection", (socket, request) => {
+wss.on("connection", (socket, role) => {
 	socket.on("close", checkIdle);
 	checkIdle();
-	const role = new URL(request.url || "/", "ws://localhost").searchParams.get("role");
 	if (role === "mcp") serveMcpClient(socket);
 	else servePlugin(socket);
 });
@@ -123,6 +133,7 @@ httpServer.on("error", (err) => {
 wss.on("error", () => {});
 
 httpServer.listen(PORT, "127.0.0.1", () => {
+	bridgeToken = createBridgeToken(httpServer.address().port);
 	checkIdle();
 	console.log(`vivi-mcp bridge: ws://localhost:${PORT}`);
 });

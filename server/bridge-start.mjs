@@ -6,6 +6,7 @@ import { get } from "node:http";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { BRIDGE_PROTOCOL } from "./bridge-auth.mjs";
 
 const SERVER_DIR = dirname(fileURLToPath(import.meta.url));
 
@@ -45,7 +46,11 @@ export async function ensureBridge({ env = process.env, serverDir = SERVER_DIR, 
 	if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("PORT должен быть целым числом от 1 до 65535");
 	const logFile = join(logDir, "bridge.log");
 	const before = await inspectBridge(port);
-	if (before.state === "ready") return { ...before, started: false, port, logFile };
+	if (before.state === "ready") {
+		if (before.protocol !== BRIDGE_PROTOCOL)
+			throw new Error(`На порту ${port} работает старый мост Vivi. Остановите его и запустите обновлённую версию.`);
+		return { ...before, started: false, port, logFile };
+	}
 	if (before.state === "other") throw new Error(`Порт ${port} занят другой программой или мост не отвечает. Освободите порт и повторите запуск.`);
 	mkdirSync(logDir, { recursive: true });
 	const fd = openSync(logFile, "a");
@@ -61,7 +66,8 @@ export async function ensureBridge({ env = process.env, serverDir = SERVER_DIR, 
 	const deadline = Date.now() + startupTimeout;
 	do {
 		const status = await inspectBridge(port);
-		if (status.state === "ready") return { ...status, started: status.pid === child.pid, port, logFile };
+		if (status.state === "ready" && status.protocol === BRIDGE_PROTOCOL)
+			return { ...status, started: status.pid === child.pid, port, logFile };
 		if (failure || exited) break;
 		await new Promise((r) => setTimeout(r, 150));
 	} while (Date.now() < deadline);

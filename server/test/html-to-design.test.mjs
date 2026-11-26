@@ -12,6 +12,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { fileURLToPath } from "node:url";
 import { PNG } from "pngjs";
 import { validateSpec } from "../design-pipeline.mjs";
+import { BRIDGE_PROTOCOL, bridgeRole, bridgeTokenPath, createBridgeToken } from "../bridge-auth.mjs";
 
 const flatten = (n) => [n, ...(n.children || []).flatMap(flatten)];
 
@@ -435,8 +436,15 @@ test("HTML: настоящий stacking context остаётся отдельн�
 });
 
 test("HTML: MCP dry без плагина, запись через create и readonly", async () => {
-	const bridge = new WebSocketServer({ port: 0, host: "127.0.0.1" });
+	let code;
+	const bridge = new WebSocketServer({
+		port: 0, host: "127.0.0.1",
+		verifyClient: ({ req }) => bridgeRole(req, bridge.address().port, code) === "mcp",
+		handleProtocols: () => BRIDGE_PROTOCOL,
+	});
 	await new Promise((r) => bridge.once("listening", r));
+	const port = bridge.address().port;
+	code = createBridgeToken(port);
 	const calls = [];
 	bridge.on("connection", (ws) => ws.on("message", (raw) => {
 		const call = JSON.parse(raw);
@@ -469,5 +477,6 @@ test("HTML: MCP dry без плагина, запись через create и rea
 		await readonly?.close();
 		for (const ws of bridge.clients) ws.terminate();
 		await new Promise((r) => bridge.close(r));
+		await rm(bridgeTokenPath(port), { force: true });
 	}
 });

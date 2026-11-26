@@ -3,7 +3,7 @@
 import type { BridgeMessage, HtmlImport, HtmlImportSource } from "../../../shared/protocol";
 
 const WS_URL = "ws://localhost:8787";
-const CLIENT_ID = `vivi-${Math.random().toString(36).slice(2, 10)}`;
+const BRIDGE_PROTOCOL = "vivi-bridge-v1";
 
 const dot = document.getElementById("dot") as HTMLElement;
 const stateEl = document.getElementById("state") as HTMLElement;
@@ -361,6 +361,9 @@ stopButton.onclick = () => {
 
 let ws: WebSocket | null = null;
 let reconnectTimer: number | undefined;
+const pairingForm = document.getElementById("bridge-pairing") as HTMLFormElement;
+const pairingInput = document.getElementById("bridge-code") as HTMLInputElement;
+let pairingCode = "";
 
 function setState(value: boolean, text: string): void {
 	connected = value;
@@ -371,11 +374,20 @@ function setState(value: boolean, text: string): void {
 
 function connect(): void {
 	window.clearTimeout(reconnectTimer);
+	if (!pairingCode) {
+		setState(false, "Введите код подключения");
+		return;
+	}
 	setState(false, "Подключение к мосту…");
-	const url = new URL(WS_URL);
-	url.searchParams.set("client", CLIENT_ID);
-	ws = new WebSocket(url.toString());
-	ws.onmessage = (event) => {
+	const previous = ws;
+	const socket = new WebSocket(WS_URL, [pairingCode, BRIDGE_PROTOCOL]);
+	ws = socket;
+	previous?.close();
+	socket.onopen = () => {
+		if (socket.protocol !== BRIDGE_PROTOCOL) socket.close();
+	};
+	socket.onmessage = (event) => {
+		if (ws !== socket || socket.protocol !== BRIDGE_PROTOCOL) return;
 		let msg: BridgeMessage;
 		try {
 			msg = JSON.parse(String(event.data));
@@ -383,6 +395,7 @@ function connect(): void {
 			return;
 		}
 		if (msg.type === "ready") {
+			pairingForm.hidden = true;
 			supportsImport = msg.htmlImport === true;
 			supportsFiles = msg.htmlFileImport === true;
 			supportsCancel = msg.htmlImportCancel === true;
@@ -405,7 +418,7 @@ function connect(): void {
 			updateForm();
 		}
 		if (msg.type === "html_import_cancel_build") stopBuild(msg.reqId);
-		if (msg.type === "mcp_call") {
+		if (msg.type === "mcp_call" && connected) {
 			// Точка вспыхивает при каждом вызове агента.
 			dot.classList.remove("pulse");
 			void dot.offsetWidth;
@@ -417,7 +430,8 @@ function connect(): void {
 			}
 		}
 	};
-	ws.onclose = () => {
+	socket.onclose = () => {
+		if (ws !== socket) return;
 		ws = null;
 		if (activeImport) {
 			activeImport.controller.abort();
@@ -429,14 +443,23 @@ function connect(): void {
 		supportsFiles = false;
 		supportsCancel = false;
 		supportsExternalResources = false;
-		setState(false, "Нет связи с мостом");
+		pairingForm.hidden = false;
+		setState(false, "Проверьте запуск моста и код подключения");
 		reconnectTimer = window.setTimeout(connect, 2500);
 	};
-	ws.onerror = () => ws?.close();
 }
+
+pairingForm.addEventListener("submit", (event) => {
+	event.preventDefault();
+	pairingCode = pairingInput.value;
+	if (!/^[a-f0-9]{64}$/.test(pairingCode)) return;
+	pairingInput.value = "";
+	connect();
+});
 
 // Ответ main-кода на вызов MCP → мост.
 window.onmessage = (event) => {
+	if (event.source !== parent) return;
 	const msg = event.data?.pluginMessage;
 	if (msg?.type === "mcp_result" && ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
 };

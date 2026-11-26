@@ -5,6 +5,11 @@
 		<div id="ui-content">
 		<header class="status"><span class="status-pill"><span id="dot" class="dot"></span><span id="state">Подключение к мосту…</span></span><button id="toggle-window" class="window-toggle" type="button" aria-label="Свернуть плагин" title="Свернуть плагин" aria-expanded="true" aria-controls="import-panel"><svg class="collapse-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 2L6 6M2 6H6V2M14 14L10 10M10 14V10H14" /></svg><svg class="expand-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6L2 2M2 6V2H6M10 10L14 14M10 14H14V10" /></svg></button></header>
 		<main id="import-panel">
+			<form id="bridge-pairing" class="import-section">
+				<label for="bridge-code">Код подключения к Vivi</label>
+				<input id="bridge-code" type="password" required pattern="[a-f0-9]{64}" autocomplete="off" spellcheck="false" />
+				<button class="secondary-button" type="submit">Подключить мост</button>
+			</form>
 			<div class="title-block"><h1>Сайт → дизайн</h1><p>Перенос страницы в редактируемые слои Figma</p></div>
 			<form id="import-form" novalidate>
 				<fieldset id="import-fields" class="import-fields">

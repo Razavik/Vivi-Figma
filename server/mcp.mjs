@@ -20,6 +20,7 @@ import { checkSpecFields } from "./spec-fields.mjs";
 import { variantEdits } from "./variants-macro.mjs";
 import { htmlToDesign } from "./html-to-design.mjs";
 import { ensureBridge } from "./bridge-start.mjs";
+import { BRIDGE_PROTOCOL, readBridgeToken } from "./bridge-auth.mjs";
 import { searchIcons } from "./icons.mjs";
 import { SCHEMA_NAMES, schemaText } from "./schemas.mjs";
 import { exportRoots, exportTarget, projectRoot, resolveArgs, saveExported } from "./mcp-export.mjs";
@@ -86,11 +87,17 @@ async function open() {
 function connectOnce() {
 	if (socket && socket.readyState === WebSocket.OPEN) return Promise.resolve(socket);
 	if (opening) return opening;
+	const token = readBridgeToken(PORT);
 	opening = new Promise((resolve, reject) => {
 		const url = new URL(`ws://127.0.0.1:${PORT}/`);
 		url.searchParams.set("role", "mcp");
-		const ws = new WebSocket(url, { maxPayload: 0 });
+		const ws = new WebSocket(url, [token, BRIDGE_PROTOCOL], { maxPayload: 0, handshakeTimeout: 2000 });
 		ws.on("open", () => {
+			if (ws.protocol !== BRIDGE_PROTOCOL) {
+				ws.close();
+				reject(new Error("Мост Vivi не поддерживает защищённое подключение."));
+				return;
+			}
 			socket = ws;
 			opening = null;
 			resolve(ws);

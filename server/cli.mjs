@@ -28,16 +28,22 @@ if (cmd === "plugin") {
 		try {
 			const { ensureBridge } = await import("./bridge-start.mjs");
 			const result = await ensureBridge();
-			console.log(`Мост ${result.started ? "запущен в фоне" : "уже работает"}: ws://localhost:${result.port}`);
-			console.log("Терминал можно закрыть. Откройте плагин Vivi MCP в Figma.");
-			console.log(`Лог: ${result.logFile}`);
+			if (process.argv.includes("--pair-code")) {
+				const { readBridgeToken } = await import("./bridge-auth.mjs");
+				console.log(readBridgeToken(result.port));
+			} else {
+				console.log(`Мост ${result.started ? "запущен в фоне" : "уже работает"}: ws://localhost:${result.port}`);
+				console.log("Терминал можно закрыть. Откройте плагин Vivi MCP в Figma.");
+				console.log("Код подключения: npx -y vivi-figma-mcp@latest bridge --pair-code");
+				console.log(`Лог: ${result.logFile}`);
+			}
 		} catch (err) {
 			console.error(String(err?.message || err));
 			process.exitCode = 1;
 		}
 	}
 } else if (cmd === "--help" || cmd === "-h") {
-	console.log("vivi-figma-mcp [plugin|bridge]\n  (без аргументов) MCP-сервер по stdio\n  plugin   путь к manifest.json плагина\n  bridge   запустить мост в фоне (терминал можно закрыть)\n  bridge --foreground   запустить в текущем терминале для отладки");
+	console.log("vivi-figma-mcp [plugin|bridge]\n  (без аргументов) MCP-сервер по stdio\n  plugin   путь к manifest.json плагина\n  bridge   запустить мост в фоне (терминал можно закрыть)\n  bridge --pair-code   вывести код подключения для плагина\n  bridge --foreground   запустить в текущем терминале для отладки");
 } else {
 	await import("./mcp.mjs");
 }
